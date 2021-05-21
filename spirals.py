@@ -22,7 +22,8 @@ parameters = {
     'speed':200,
     'major axis':5,
     'semi major axis':2,
-    'angle':2
+    'angle':2,
+    'constant':False
 }
 
 def spiral():
@@ -56,6 +57,9 @@ def spiral():
         push = tan(start * pi / 180) * speed
     elif parameters['behavior'] == 'linear':
         push = int(start / 20 * speed)
+
+    if parameters['constant']:
+        push += int(start * 2)
 
     imageSize = 600
 
@@ -97,16 +101,15 @@ def spiral():
                 cv2.line(image,prev2,pos2,color,lineThickness)
             elif parameters['type'] == 'rectangle':
                 cv2.rectangle(image,prev,pos,color,lineThickness)
+            elif parameters['type'] == 'rectangle2':
                 cv2.rectangle(image,prev2,pos2,color,lineThickness)
             elif parameters['type'] == 'circle':
                 cv2.circle(image,pos,int(lineThickness/2),color,-1)
                 cv2.circle(image,pos2,int(lineThickness/2),color,-1)
             elif parameters['type'] == 'ellipse':
-
                 MA = parameters['major axis'] + 1
                 SA = parameters['semi major axis'] + 1
                 rotation = parameters['angle']
-
                 distance = int(sqrt(abs(pos[0] - prev[0])**2 + abs(pos[1] - prev[1])**2))
                 cv2.ellipse(image, (pos, (distance/MA,distance/SA),i + rotation), color, -1)
             elif parameters['type'] == 'polygon':
@@ -138,13 +141,25 @@ def direction(*args):
         parameters['direction'] = 'reverse'
     pass
 
+def constant(*args):
+    parameters['constant'] = args[0]
+    pass
+
 def createSliderWindow():
 
     cv2.namedWindow(windowName)
 
+    inclimit = 359
+
+    cv2.createTrackbar('inc',windowName,parameters['inc'],inclimit,lambda v:trackbarCallback('inc',v))
+
     thicknessLimit = 256
 
     cv2.createTrackbar('lineThickness',windowName,parameters['lineThickness'],thicknessLimit,lambda v:trackbarCallback('lineThickness',v))
+
+    speedLimit = 700
+
+    cv2.createTrackbar('speed',windowName,parameters['speed'],speedLimit,lambda v:trackbarCallback('speed',v))
 
     phaselimit = 256
 
@@ -173,15 +188,8 @@ def createSliderWindow():
 
     cv2.createTrackbar('angle (ellipse)',windowName,parameters['angle'],maxAngle,lambda v:trackbarCallback('angle',v))
 
-    inclimit = 359
-
-    cv2.createTrackbar('inc',windowName,parameters['inc'],inclimit,lambda v:trackbarCallback('inc',v))
-
-    speedLimit = 700
-
-    cv2.createTrackbar('speed',windowName,parameters['speed'],speedLimit,lambda v:trackbarCallback('speed',v))
-
-    cv2.createButton('rectangles',type,'rectangle',2,0)
+    cv2.createButton('spiral rect',type,'rectangle',2,0)
+    cv2.createButton('edge rect',type,'rectangle2',2,0)
     cv2.createButton('lines',type,'line',2,0)
     cv2.createButton('circles',type,'circle',2,0)
     cv2.createButton('ellipse',type,'ellipse',2,1)
@@ -193,6 +201,8 @@ def createSliderWindow():
     cv2.createButton('linear',behavior,'linear',2,0)
 
     cv2.createButton('direction',direction,0,1,0)
+
+    cv2.createButton('constant',constant,0,1,0)
 
 # hek
 def trackbarCallback(windowName,value):
