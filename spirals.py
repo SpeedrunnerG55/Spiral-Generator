@@ -16,14 +16,15 @@ parameters = {
     'grn anglular dif':30,
     'red anglular dif':65,
     'inc':0,
-    'type':'ellipse',
+    'type':'line',
     'behavior':'sin',
     'direction':'forward',
     'speed':200,
     'major axis':5,
     'semi major axis':2,
     'angle':2,
-    'constant':False
+    'constant':False,
+    'colorspace':'BGR'
 }
 
 def spiral():
@@ -47,19 +48,19 @@ def spiral():
 
     inc = parameters['inc'] + 1
 
-    speed = parameters['speed']
-
     if parameters['behavior'] == 'sin':
-        push = sin(start * pi / 180) * speed
+        push = sin(start * pi / 180)
     elif parameters['behavior'] == 'cos':
-        push = cos(start * pi / 180) * speed
+        push = cos(start * pi / 180)
     elif parameters['behavior'] == 'tan':
-        push = tan(start * pi / 180) * speed
-    elif parameters['behavior'] == 'linear':
-        push = int(start / 20 * speed)
+        push = tan(start * pi / 180)
+    elif parameters['behavior'] == 'none':
+        push = 0
 
-    if parameters['constant']:
-        push += int(start * 2)
+    if parameters['constant'] == 'yes':
+        push += (start * pi / 180)
+    else:
+        push += 0
 
     imageSize = 600
 
@@ -85,13 +86,18 @@ def spiral():
         pos = [int(origin + cos(angle) * r), int(origin + sin(angle) * r)]
         pos2 = [int(origin + cos(angle) * edge), int(origin + sin(angle) * edge)]
 
-        bluchan = push + bluPhase + (angle*bluDif)
-        redchan = push + grnPhase + (angle*grnDif)
-        grnchan = push + redPhase + (angle*redDif)
+        bluchan = bluPhase + ((push + angle * bluDif) * 255 / pi)
+        redchan = grnPhase + ((push + angle * grnDif) * 255 / pi)
+        grnchan = redPhase + ((push + angle * redDif) * 255 / pi)
 
-        bluchan %= bluLimit
-        redchan %= grnLimit
-        grnchan %= redLimit
+        if parameters['colorspace'] == 'HSV':
+            bluchan %= 180
+            redchan %= 255
+            grnchan %= 255
+        else:
+            bluchan %= bluLimit
+            redchan %= grnLimit
+            grnchan %= redLimit
 
         color = [bluchan,redchan,grnchan]
 
@@ -124,25 +130,18 @@ def spiral():
         color = [bluPhase,grnPhase,redPhase]
         image = cv2.polylines(image,[points],False,color,2,5)
 
+    if parameters['colorspace'] == 'HSV':
+        image = cv2.cvtColor(image,cv2.COLOR_HSV2BGR)
+
     return image
 
-def behavior(*args):
-    parameters['behavior'] = args[1]
+def change(*args):
+    parameters[args[1][0]] = args[1][1]
     pass
 
-def type(*args):
-    parameters['type'] = args[1]
-    pass
-
-def direction(*args):
-    if args[0]:
-        parameters['direction'] = 'forward'
-    else:
-        parameters['direction'] = 'reverse'
-    pass
-
-def constant(*args):
-    parameters['constant'] = args[0]
+def check(*args):
+    parameters[args[1][0]] = args[1][args[0] + 1]
+    print(parameters[args[1][0]])
     pass
 
 def createSliderWindow():
@@ -173,7 +172,7 @@ def createSliderWindow():
     cv2.createTrackbar('grn Limit',windowName,parameters['grn Limit'],maxLimit,lambda v:trackbarCallback('grn Limit',v))
     cv2.createTrackbar('red Limit',windowName,parameters['red Limit'],maxLimit,lambda v:trackbarCallback('red Limit',v))
 
-    speedlimit = 500
+    speedlimit = 1000
 
     cv2.createTrackbar('blu anglular dif',windowName,parameters['blu anglular dif'],speedlimit,lambda v:trackbarCallback('blu anglular dif',v))
     cv2.createTrackbar('grn anglular dif',windowName,parameters['grn anglular dif'],speedlimit,lambda v:trackbarCallback('grn anglular dif',v))
@@ -188,21 +187,24 @@ def createSliderWindow():
 
     cv2.createTrackbar('angle (ellipse)',windowName,parameters['angle'],maxAngle,lambda v:trackbarCallback('angle',v))
 
-    cv2.createButton('spiral rect',type,'rectangle',2,0)
-    cv2.createButton('edge rect',type,'rectangle2',2,0)
-    cv2.createButton('lines',type,'line',2,0)
-    cv2.createButton('circles',type,'circle',2,0)
-    cv2.createButton('ellipse',type,'ellipse',2,1)
-    cv2.createButton('polygon',type,'polygon',2,0)
+    cv2.createButton('spiral rect',change,['type','rectangle' ],2,0)
+    cv2.createButton('edge rect'  ,change,['type','rectangle2'],2,0)
+    cv2.createButton('lines'      ,change,['type','line'      ],2,1)
+    cv2.createButton('circles'    ,change,['type','circle'    ],2,0)
+    cv2.createButton('ellipse'    ,change,['type','ellipse'   ],2,0)
+    cv2.createButton('polygon'    ,change,['type','polygon'   ],2,0)
 
-    cv2.createButton('sin',behavior,'sin',2,1)
-    cv2.createButton('cos',behavior,'cos',2,0)
-    cv2.createButton('tan',behavior,'tan',2,0)
-    cv2.createButton('linear',behavior,'linear',2,0)
+    cv2.createButton('sin' ,change,['behavior','sin' ],2,1)
+    cv2.createButton('cos' ,change,['behavior','cos' ],2,0)
+    cv2.createButton('tan' ,change,['behavior','tan' ],2,0)
+    cv2.createButton('none',change,['behavior','none'],2,0)
 
-    cv2.createButton('direction',direction,0,1,0)
+    cv2.createButton('HSV',change,['colorspace','HSV'],2,0)
+    cv2.createButton('HSV',change,['colorspace','BGR'],2,1)
 
-    cv2.createButton('constant',constant,0,1,0)
+    cv2.createButton('direction',check,['direction','forward','reverse'],1,0)
+
+    cv2.createButton('constant',check,['constant','yes','no'],1,0)
 
 # hek
 def trackbarCallback(windowName,value):
@@ -214,10 +216,12 @@ if __name__ == '__main__':
     start = 0
     while True:
 
+        speed = parameters['speed']
+
         if parameters['direction'] == 'forward':
-            start += 1
+            start += speed
         elif parameters['direction'] == 'reverse':
-            start -= 1
+            start -= speed
         im = spiral()
         cv2.imshow(windowName,im)
         cv2.waitKey(1)
