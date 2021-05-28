@@ -255,7 +255,7 @@ def tbcb(key,value):
 
 # create track bar
 def ctb(tname,wname,dval,mval,callback):
-    print('{:25s} {:10s} {:<9d} {:<9d} {}'.format(tname,wname,dval,mval,callback))
+    # print('{:25s} {:10s} {:<9d} {:<9d} {}'.format(tname,wname,dval,mval,callback))
     cv2.createTrackbar(tname,wname,dval,mval,callback)
 
 def createSliderWindow():
@@ -300,17 +300,14 @@ def createSliderWindow():
 
     buttonTypes = ['direction','constant']
 
-    for i in range(len(suffix)):
-        a = int(i)
-        color = suffix[a]
-        for r in range(len(widecfgs)):
-            wcfg = widecfgs[r]
-            ctb(color + ' corse ' + wcfg,windowName,parameters['corse ' + wcfg][a],360,lambda v:tbcb(['corse ' + wcfg,a],v))
-            ctb(color + ' fine '  + wcfg,windowName,parameters['fine '  + wcfg][a],360,lambda v:tbcb(['fine '  + wcfg,a],v))
+    for color in suffix:
+        a = suffix.index(color)
+        for wcfg in widecfgs:
+            ctb(color + ' corse ' + wcfg,windowName,parameters['corse ' + wcfg][a],360,lambda v, a=a, wcfg=wcfg:tbcb(['corse ' + wcfg,a],v))
+            ctb(color + ' fine '  + wcfg,windowName,parameters['fine '  + wcfg][a],360,lambda v, a=a, wcfg=wcfg:tbcb(['fine '  + wcfg,a],v))
 
-        for b in range(len(cfgs)):
-            cfg = cfgs[b]
-            ctb(color + ' ' + cfg  ,windowName,parameters[cfg][a],360 ,lambda v:tbcb([cfg,a],v))
+        for cfg in cfgs:
+            ctb(color + ' ' + cfg  ,windowName,parameters[cfg][a],360 ,lambda v, a=a, cfg=cfg:tbcb([cfg,a],v))
 
         for f in range(len(buttonTypes)):
             btype = buttonTypes[f]
@@ -322,20 +319,18 @@ def createSliderWindow():
 
     types = ['rectangle center','rectangle edge','line','circle','ellipse','polygon']
 
-    for k in range(len(types)):
-        type = types[k]
+    for type in types:
         cv2.createButton(type + ' graph',change,['type',type],2,parameters['type'] == type)
 
     graphTypes =  ['fill','phase','spiral','unit','time']
 
-    for j in range(len(graphTypes)):
-        type = graphTypes[j]
+    for type in graphTypes:
         cv2.createButton(type + ' graph',check,['graph',type],1,parameters['graph'][type])
 
     colorspaces = ['BGR','HSV','LUV','YUV','LAB']
 
-    for l in range(len(colorspaces)):
-        cv2.createButton(colorspaces[l] + ' colorspace',change,['colorspace',colorspaces[l]],2,parameters['colorspace'] == types[k])
+    for code in colorspaces:
+        cv2.createButton(code + ' colorspace',change,['colorspace',code],2,parameters['colorspace'] == code)
 
     cv2.createButton('reset',reset)
 
