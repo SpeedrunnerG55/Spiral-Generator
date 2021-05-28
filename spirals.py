@@ -2,226 +2,392 @@ import cv2
 import numpy as np
 from numpy import array
 from math import sin, cos, tan, pi, sqrt
+from time import time_ns
 
 # defaults
 parameters = {
-    'lineThickness':10,
-    'blu Phase angle':50,
-    'grn Phase angle':90,
-    'red Phase angle':100,
-    'blu Limit':190,
-    'grn Limit':90,
-    'red Limit':100,
-    'blu anglular dif':1,
-    'grn anglular dif':30,
-    'red anglular dif':65,
+    'imageSize':500,
+    'graph':{'fill':True,'phase':False,'spiral':False,'unit':False,'time':False},
+    'colorspace':'BGR',
+    'clock':100,
+    'timeAngle':None,
+    'lineThickness':20,
     'inc':0,
-    'type':'line',
-    'behavior':'sin',
-    'direction':'forward',
-    'speed':200,
-    'major axis':5,
-    'semi major axis':2,
-    'angle':2,
-    'constant':False,
-    'colorspace':'BGR'
+    'type':'polygon',
+    'majr axis':0,
+    'semi axis':0,
+    'angle':0,
+    'phase angle':[0,0,0],
+    'corse angle dif':[4,0,0],
+    'fine angle dif':[180,180,180],
+    'trig':['none','none','none'],
+    'direction':['fwd','fwd','fwd'],
+    'fine speed':[0,0,0],
+    'corse speed':[0,0,0],
+    'constant':[False,False,False],
+    'val':[0,0,0],
+    'maxval':[0xFF,0xFF,0xFF],
+    'frequency':[1,0,0],
+    'amplitude':[1,0,0]
 }
 
 def spiral():
 
-    # read parameters
+    windowName = 'spiral'
 
-    lineThickness = parameters['lineThickness'] + 1
+    # read parameters, calculae movment (starting color value), fill in color
+    # starting vlue per channel
+    stVals = [parameters['val'][i] for i in range(3)]
+    # maximum value per chanel
+    maxchannels = [parameters['maxval'][i] for i in range(3)]
+    # phase angle
+    phases = [parameters['phase angle'][i] for i in range(3)]
+    stVals = [stVals[i] + (phases[i] * maxchannels[i] / 360) for i in range(3)]
+    # color diferential per angle change
+    fneDifs = [parameters['fine angle dif'][i] for i in range(3)]
+    cseDifs = [parameters['corse angle dif'][i] for i in range(3)]
 
-    bluPhase = parameters['blu Phase angle']
+    # storage for prev1ious positions
+    prev1 = None
+    prev2 = None
 
-    grnPhase = parameters['grn Phase angle']
-    redPhase = parameters['red Phase angle']
+    # width of the picture
+    imageSize = parameters['imageSize'] + 1
 
-    bluLimit = parameters['blu Limit'] + 1
-    grnLimit = parameters['grn Limit'] + 1
-    redLimit = parameters['red Limit'] + 1
-
-    bluDif = parameters['blu anglular dif']
-    grnDif = parameters['grn anglular dif']
-    redDif = parameters['red anglular dif']
-
-    inc = parameters['inc'] + 1
-
-    if parameters['behavior'] == 'sin':
-        push = sin(start * pi / 180)
-    elif parameters['behavior'] == 'cos':
-        push = cos(start * pi / 180)
-    elif parameters['behavior'] == 'tan':
-        push = tan(start * pi / 180)
-    elif parameters['behavior'] == 'none':
-        push = 0
-
-    if parameters['constant'] == 'yes':
-        push += (start * pi / 180)
-    else:
-        push += 0
-
-    imageSize = 600
-
+    # center of image
     origin = int(imageSize / 2)
-    center = (origin,origin)
+
+    # calculations to keep the plot within the immage
+    lineThickness = parameters['lineThickness'] + 1
+    # calculate number of turn such that the radious of the graph is 1/3 of the screen width
     numTurns = int(imageSize / lineThickness / 3)
+    # radius for edge positions
     edge = lineThickness * numTurns
     image = np.full((imageSize,imageSize,3),[0,0,0],dtype=np.uint8)
 
-    prev = None
-    prev2 = None
+    # amount to incriment each fill cycle
+    inc = parameters['inc'] + 1
 
-    points = array([],dtype=np.int32)
+    if parameters['graph']['fill']:
 
-    for i in range(0,360 * numTurns,inc):
+        full = 2 * pi
 
-        angle = i * pi / 180
+        for i in range(0,360 * numTurns,inc):
+            # current radius for fill
+            r = i * lineThickness / 360
+            # angle of fill in radians
+            angle = i * full / 360
+            # trig calculations
+            trig =  cos(angle),sin(angle)
+            # polar to cartisian conversion
+            pos1 = [int(origin + trig[j] * r   ) for j in range(2)]
+            pos2 = [int(origin + trig[j] * edge) for j in range(2)]
+            # calculate color
+            color = [(stVals[j] + i * (cseDifs[j] * 180  + fneDifs[j] - 180) / maxchannels[j]) % maxchannels[j] for j in range(3)]
+            # filling the position
+            if prev1 != None:
+                if parameters['type'] == 'line':
+                    cv2.line(image,prev1,pos1,color,lineThickness)
+                    cv2.line(image,prev2,pos2,color,lineThickness)
+                elif parameters['type'] == 'rectangle center':
+                    cv2.rectangle(image,prev1,pos1,color,lineThickness)
+                elif parameters['type'] == 'rectangle edge':
+                    cv2.rectangle(image,prev2,pos2,color,lineThickness)
+                elif parameters['type'] == 'circle':
+                    cv2.circle(image,pos1,int(lineThickness/2),color,-1)
+                    cv2.circle(image,pos2,int(lineThickness/2),color,-1)
+                elif parameters['type'] == 'ellipse':
+                    MA = parameters['majr axis'] + 1
+                    SA = parameters['semi axis'] + 1
+                    rotation = parameters['angle']
+                    distance = int(sqrt(abs(pos1[0] - prev1[0])**2 + abs(pos1[1] - prev1[1])**2))
+                    cv2.ellipse(image, (pos1, (distance/MA,distance/SA),i + rotation), color, -1)
+                elif parameters['type'] == 'polygon':
+                    # radius of each loop end
+                    radii = [((i + ((j > 1) * inc)) * lineThickness / 360) - ([0,1,1,0][j] * lineThickness) for j in range(4)]
+                    angles = [(i + (j       * inc)) * full          / 360                                   for j in range(2)]
+                    Trigs = [[cos(angles[j]),sin(angles[j])] for j in range(2)]
+                    # create an array of points, in a circular fasion from one radii then the next angle and back in the prev1ious radii
+                    poly1 = array([[int(origin + Trigs[k > 1][l] * radii[k])                              for l in range (2)] for k in range(4)])
+                    poly2 = array([[int(origin + Trigs[k > 1][l] * (edge - [0,1,1,0][k] * lineThickness)) for l in range (2)] for k in range(4)])
+                    # convert to degrees then do mod 360 and convert back
+                    image = cv2.fillPoly(image,[poly2],color)
+                    image = cv2.fillPoly(image,[poly1],color)
+                    # for j in range(4):
+                    #     cv2.line(image,poly1[j],poly1[(j + 1) % 4],[0xFF,0xFF,0xFF])
+                    #     cv2.line(image,poly2[j],poly2[(j + 1) % 4],[0xFF,0xFF,0xFF])
 
-        linear = i / 360
+            prev1 = pos1
+            prev2 = pos2
 
-        r = linear * lineThickness
+    # spiral graph
+    if parameters['graph']['spiral']:
+        full = 2 * pi
+        for i in range(0,360 * numTurns,inc):
+            if i > 0:
+                radii  = [(i + (j * inc)) * lineThickness / 360 for j in range(2)]
+                angles = [(i + (j * inc)) * full          / 360 for j in range(2)]
+                carts  = [[int(origin + cos(angles[j]) * radii[j]), int(origin + sin(angles[j]) * radii[j])] for j in range(2)]
+                channels = [stVals[j] + i * (cseDifs[j] * 180  + fneDifs[j] - 180) / maxchannels[j] for j in range(3)]
+                part = int(channels[0] / maxchannels[0]) % 2
+                if part:
+                    cv2.line(image,carts[0],carts[1],[0,0xFF,0])
+                else:
+                    cv2.line(image,carts[0],carts[1],[0,0,0xFF])
 
-        pos = [int(origin + cos(angle) * r), int(origin + sin(angle) * r)]
-        pos2 = [int(origin + cos(angle) * edge), int(origin + sin(angle) * edge)]
+    # time cycle graph
+    if parameters['graph']['time']:
+        full = 2 * pi
+        # position
+        offset = imageSize / 3
+        center = int((imageSize / 2) + offset),int((imageSize / 2) - offset)
+        # size
+        radius = edge / 2.6
+        # width of each loop
+        width = radius / 6
+        # radius of each loop end
+        radii = [(radius - i * width) for i in range(5)]
+        chanangles = [(stVals[i] / maxchannels[i]) * full for i in range(3)]
+        chanangles.append(parameters['timeAngle'])
+        # circular gradiants
+        step = int(360 / 60)
+        for j in range(0,360,step):
+            angles = [(j + k * step) * full / 360 for k in range(2)]
+            colorTrigs = [[cos(angles[k]),sin(angles[k])] for k in range(2)]
+            for i in range(4):
+                # create an array of points, in a circular fasion from one radii then the next angle and back in the prev1ious radii
+                poly1 = array([[int(center[l] + colorTrigs[k > 1][l] * radii[i+[0,1,1,0][k]]) for l in range (2)] for k in range(4)])
+                # convert to degrees then do mod 360 and convert back
+                chanangles[i] = (chanangles[i] * 360 / full % 360) * full / 360
+                if chanangles[i] >= angles[0] and chanangles[i] < angles[1]:
+                    image = cv2.fillPoly(image,[poly1],[0xFF,0xFF,0xFF])
+                else:
+                    color = [0,0,0]
+                    if i < 3:
+                        color[i] = j / 360 * maxchannels[i]
+                        image = cv2.fillPoly(image,[poly1],color)
+                        cv2.line(image,poly1[0],poly1[3],[0xFF,0xFF,0xFF])
+                    cv2.line(image,poly1[1],poly1[2],[0xFF,0xFF,0xFF])
 
-        bluchan = bluPhase + ((push + angle * bluDif) * 255 / pi)
-        redchan = grnPhase + ((push + angle * grnDif) * 255 / pi)
-        grnchan = redPhase + ((push + angle * redDif) * 255 / pi)
+    # phase diagram
+    if parameters['graph']['phase']:
+        for i in range(0,360 * numTurns,inc):
+            x = origin - edge + int((i % 360) * (2 * edge) / 360)
+            y = origin + edge + lineThickness + int(i / 360)
+            pos1 = x,y + 20
+            channels = [(stVals[j] + i * (cseDifs[j] * 180  + fneDifs[j] - 180) / maxchannels[j]) % maxchannels[j] for j in range(3)]
+            cv2.circle(image,pos1,0,channels)
+            if i % 360 == 0:
+                cv2.circle(image,pos1,0,[0xFF,0xFF,0xFF])
+            elif i % 90 == 0:
+                cv2.circle(image,pos1,0,[0,0xFF,0xFF])
+            elif i % 60 == 0:
+                cv2.circle(image,pos1,0,[0xFF,0,0xFF])
+            elif i % 30 == 0:
+                cv2.circle(image,pos1,0,[0xFF,0xFF,0])
+            elif i % 15 == 0:
+                cv2.circle(image,pos1,0,[0,0,0xFF])
 
-        if parameters['colorspace'] == 'HSV':
-            bluchan %= 180
-            redchan %= 255
-            grnchan %= 255
-        else:
-            bluchan %= bluLimit
-            redchan %= grnLimit
-            grnchan %= redLimit
+    # unit circle
+    if parameters['graph']['unit']:
+        cv2.circle(image,(origin,origin),edge,[0xFF,0xFF,0xFF])
+        for i in range(6):
+            angle = i * (pi/6)
+            trigs = int(edge * cos(angle)),int(edge * sin(angle))
+            end1 = [origin + trigs[j] for j in range(2)]
+            end2 = [origin - trigs[j] for j in range(2)]
+            cv2.line(image,end1,end2,[0xFF,0,0xFF])
+        for i in range(1,4,2):
+            angle = i * (pi/4)
+            trigs = int(edge * cos(angle)),int(edge * sin(angle))
+            end1 = [origin + trigs[j] for j in range(2)]
+            end2 = [origin - trigs[j] for j in range(2)]
+            cv2.line(image,end1,end2,[0xFF,0xFF,0])
 
-        color = [bluchan,redchan,grnchan]
-
-        if prev != None:
-            if parameters['type'] == 'line':
-                cv2.line(image,prev,pos,color,lineThickness)
-                cv2.line(image,prev2,pos2,color,lineThickness)
-            elif parameters['type'] == 'rectangle':
-                cv2.rectangle(image,prev,pos,color,lineThickness)
-            elif parameters['type'] == 'rectangle2':
-                cv2.rectangle(image,prev2,pos2,color,lineThickness)
-            elif parameters['type'] == 'circle':
-                cv2.circle(image,pos,int(lineThickness/2),color,-1)
-                cv2.circle(image,pos2,int(lineThickness/2),color,-1)
-            elif parameters['type'] == 'ellipse':
-                MA = parameters['major axis'] + 1
-                SA = parameters['semi major axis'] + 1
-                rotation = parameters['angle']
-                distance = int(sqrt(abs(pos[0] - prev[0])**2 + abs(pos[1] - prev[1])**2))
-                cv2.ellipse(image, (pos, (distance/MA,distance/SA),i + rotation), color, -1)
-            elif parameters['type'] == 'polygon':
-                points = np.append(points,pos)
-                # points = np.append(points,pos2)
-
-        prev = pos
-        prev2 = pos2
-
-    if parameters['type'] == 'polygon':
-        points = points.reshape((-1,1,2))
-        color = [bluPhase,grnPhase,redPhase]
-        image = cv2.polylines(image,[points],False,color,2,5)
-
+    # display data as in different colorspace
     if parameters['colorspace'] == 'HSV':
         image = cv2.cvtColor(image,cv2.COLOR_HSV2BGR)
+    if parameters['colorspace'] == 'LUV':
+        image = cv2.cvtColor(image,cv2.COLOR_LUV2BGR)
+    if parameters['colorspace'] == 'YUV':
+        image = cv2.cvtColor(image,cv2.COLOR_YUV2BGR)
+    if parameters['colorspace'] == 'LAB':
+        image = cv2.cvtColor(image,cv2.COLOR_LAB2BGR)
 
-    return image
+    cv2.imshow(windowName,image)
+    cv2.waitKey(1)
 
 def change(*args):
-    parameters[args[1][0]] = args[1][1]
+    print('change',args[1])
+    if len(args[1]) > 2:
+        parameters[args[1][0]][args[1][1]] = args[1][2]
+    else:
+        parameters[args[1][0]] = args[1][1]
+    if parameters['colorspace'] == 'HSV':
+        parameters['maxblu'] = 180
+        parameters['maxgen'] = 256
+        parameters['maxred'] = 256
+    elif parameters['colorspace'] == 'BGR':
+        parameters['maxblu'] = 256
+        parameters['maxgen'] = 256
+        parameters['maxred'] = 256
     pass
 
+# hek
+
 def check(*args):
-    parameters[args[1][0]] = args[1][args[0] + 1]
-    print(parameters[args[1][0]])
+    print (args)
+    print(args[1][0],args[0])
+    parameters[args[1][0]][args[1][1]] = args[0]
     pass
+
+def reset(*args):
+    # todo: make a reset function that works
+    pass
+
+# trackbar callback, one callback to rule them all
+def tbcb(key,value):
+    print(key,value)
+    if type(key) == list:
+        parameters[key[0]][key[1]] = value
+    else:
+        parameters[key] = value
+
+# create track bar
+def ctb(tname,wname,dval,mval,callback):
+    print('{:25s} {:10s} {:<9d} {:<9d} {}'.format(tname,wname,dval,mval,callback))
+    cv2.createTrackbar(tname,wname,dval,mval,callback)
 
 def createSliderWindow():
 
+    windowName = 'controls'
+
     cv2.namedWindow(windowName)
 
-    inclimit = 359
+    height = 120
+    width = height * 8
+    size = int(height / 40)
+    y = int(height * 2 / 3)
 
-    cv2.createTrackbar('inc',windowName,parameters['inc'],inclimit,lambda v:trackbarCallback('inc',v))
+    blank = np.empty((height,width,3),dtype=np.uint8)
 
-    thicknessLimit = 256
+    for i in range(blank.shape[0]):
+        for j in range(blank.shape[1]):
+            for k in range(3):
+                blank[i][j][k] *= 2/3
 
-    cv2.createTrackbar('lineThickness',windowName,parameters['lineThickness'],thicknessLimit,lambda v:trackbarCallback('lineThickness',v))
+    blank = cv2.cvtColor(blank,cv2.COLOR_BGR2GRAY)
 
-    speedLimit = 700
+    cv2.putText(blank,windowName,(30,y),cv2.FORMATTER_FMT_DEFAULT,size,(100, 0, 0),3)
+    cv2.putText(blank,windowName,(30,y),cv2.FORMATTER_FMT_DEFAULT,size,(200, 0, 0),2)
+    cv2.imshow(windowName,blank)
 
-    cv2.createTrackbar('speed',windowName,parameters['speed'],speedLimit,lambda v:trackbarCallback('speed',v))
+    ctb('imageSize'          ,windowName,parameters['imageSize']    ,1000,lambda v:tbcb('imageSize'    ,v))
+    ctb('clock'              ,windowName,parameters['clock']        ,1000,lambda v:tbcb('clock'        ,v))
+    ctb('incriment'          ,windowName,parameters['inc']          ,359 ,lambda v:tbcb('inc'          ,v))
+    ctb('lineThickness'      ,windowName,parameters['lineThickness'],256 ,lambda v:tbcb('lineThickness',v))
+    ctb('majr axis (ellipse)',windowName,parameters['majr axis']    ,30  ,lambda v:tbcb('majr axis'    ,v))
+    ctb('semi axis (ellipse)',windowName,parameters['semi axis']    ,30  ,lambda v:tbcb('semi axis'    ,v))
+    ctb('angle     (ellipse)',windowName,parameters['angle']        ,360 ,lambda v:tbcb('angle'        ,v))
 
-    phaselimit = 256
+    suffix = ['blue','green','red']
 
-    cv2.createTrackbar('blu Phase angle',windowName,parameters['blu Phase angle'],phaselimit,lambda v:trackbarCallback('blu Phase angle',v))
-    cv2.createTrackbar('grn Phase angle',windowName,parameters['grn Phase angle'],phaselimit,lambda v:trackbarCallback('grn Phase angle',v))
-    cv2.createTrackbar('red Phase angle',windowName,parameters['red Phase angle'],phaselimit,lambda v:trackbarCallback('red Phase angle',v))
+    widecfgs = ['speed','angle dif']
 
-    maxLimit = 500
+    trigs = ['sin','cos','tan','none']
 
-    cv2.createTrackbar('blu Limit',windowName,parameters['blu Limit'],maxLimit,lambda v:trackbarCallback('blu Limit',v))
-    cv2.createTrackbar('grn Limit',windowName,parameters['grn Limit'],maxLimit,lambda v:trackbarCallback('grn Limit',v))
-    cv2.createTrackbar('red Limit',windowName,parameters['red Limit'],maxLimit,lambda v:trackbarCallback('red Limit',v))
+    cfgs = ['frequency','amplitude','phase angle']
 
-    speedlimit = 1000
+    buttonTypes = ['direction','constant']
 
-    cv2.createTrackbar('blu anglular dif',windowName,parameters['blu anglular dif'],speedlimit,lambda v:trackbarCallback('blu anglular dif',v))
-    cv2.createTrackbar('grn anglular dif',windowName,parameters['grn anglular dif'],speedlimit,lambda v:trackbarCallback('grn anglular dif',v))
-    cv2.createTrackbar('red anglular dif',windowName,parameters['red anglular dif'],speedlimit,lambda v:trackbarCallback('red anglular dif',v))
+    for i in range(len(suffix)):
+        a = int(i)
+        color = suffix[a]
+        for r in range(len(widecfgs)):
+            wcfg = widecfgs[r]
+            ctb(color + ' corse ' + wcfg,windowName,parameters['corse ' + wcfg][a],360,lambda v:tbcb(['corse ' + wcfg,a],v))
+            ctb(color + ' fine '  + wcfg,windowName,parameters['fine '  + wcfg][a],360,lambda v:tbcb(['fine '  + wcfg,a],v))
 
-    axisLimit = 30
+        for b in range(len(cfgs)):
+            cfg = cfgs[b]
+            ctb(color + ' ' + cfg  ,windowName,parameters[cfg][a],360 ,lambda v:tbcb([cfg,a],v))
 
-    cv2.createTrackbar('major axis (ellipse)',windowName,parameters['major axis'],axisLimit,lambda v:trackbarCallback('major axis',v))
-    cv2.createTrackbar('semi major axis (ellipse)',windowName,parameters['semi major axis'],axisLimit,lambda v:trackbarCallback('semi major axis',v))
+        for f in range(len(buttonTypes)):
+            btype = buttonTypes[f]
+            cv2.createButton(color + ' ' + btype,check,[btype,a],1,0)
 
-    maxAngle = 360
+        for u in range(len(trigs)):
+            trig = trigs[u]
+            cv2.createButton(color + ' ' + trig,change,['trig',a,trig] ,2,0)
 
-    cv2.createTrackbar('angle (ellipse)',windowName,parameters['angle'],maxAngle,lambda v:trackbarCallback('angle',v))
+    types = ['rectangle center','rectangle edge','line','circle','ellipse','polygon']
 
-    cv2.createButton('spiral rect',change,['type','rectangle' ],2,0)
-    cv2.createButton('edge rect'  ,change,['type','rectangle2'],2,0)
-    cv2.createButton('lines'      ,change,['type','line'      ],2,1)
-    cv2.createButton('circles'    ,change,['type','circle'    ],2,0)
-    cv2.createButton('ellipse'    ,change,['type','ellipse'   ],2,0)
-    cv2.createButton('polygon'    ,change,['type','polygon'   ],2,0)
+    for k in range(len(types)):
+        type = types[k]
+        cv2.createButton(type + ' graph',change,['type',type],2,parameters['type'] == type)
 
-    cv2.createButton('sin' ,change,['behavior','sin' ],2,1)
-    cv2.createButton('cos' ,change,['behavior','cos' ],2,0)
-    cv2.createButton('tan' ,change,['behavior','tan' ],2,0)
-    cv2.createButton('none',change,['behavior','none'],2,0)
+    graphTypes =  ['fill','phase','spiral','unit','time']
 
-    cv2.createButton('HSV',change,['colorspace','HSV'],2,0)
-    cv2.createButton('HSV',change,['colorspace','BGR'],2,1)
+    for j in range(len(graphTypes)):
+        type = graphTypes[j]
+        cv2.createButton(type + ' graph',check,['graph',type],1,parameters['graph'][type])
 
-    cv2.createButton('direction',check,['direction','forward','reverse'],1,0)
+    colorspaces = ['BGR','HSV','LUV','YUV','LAB']
 
-    cv2.createButton('constant',check,['constant','yes','no'],1,0)
+    for l in range(len(colorspaces)):
+        cv2.createButton(colorspaces[l] + ' colorspace',change,['colorspace',colorspaces[l]],2,parameters['colorspace'] == types[k])
 
-# hek
-def trackbarCallback(windowName,value):
-    parameters[windowName] = value
+    cv2.createButton('reset',reset)
+
+
+def calculateMovement(oldTime):
+    newTime = time_ns()
+    clock = parameters['clock'] + 1
+    deltaTime = (newTime - oldTime) / (clock / 60)
+    deltatimeangle = deltaTime / 1e+9 * pi * 2
+    timeAngle = parameters['timeAngle']
+    full = 2 * pi
+    if timeAngle != None:
+        timeAngle += deltatimeangle
+    else:
+        timeAngle = deltatimeangle
+
+    parameters['timeAngle'] = timeAngle
+
+    maxchannels = [parameters['maxval'][i] for i in range(3)]
+
+    # load start values
+    stVals = [parameters['val'][i] for i in range(3)]
+
+    # trig
+    for i in range(3):
+        trig = parameters['trig'][i]
+        if trig != 'none':
+            frequencyResponce = parameters['frequency'][i] / 60
+            amplitudeResponce = parameters['amplitude'][i]
+        if trig == 'sin':
+            stVals[i] = sin(timeAngle * frequencyResponce) * amplitudeResponce
+        elif trig == 'cos':
+            stVals[i] = cos(timeAngle * frequencyResponce) * amplitudeResponce
+        elif trig == 'tan':
+            stVals[i] = tan(timeAngle * frequencyResponce) * amplitudeResponce
+
+    # constant
+    for i in range(3):
+        if parameters['constant'][i]:
+            fnespeed = parameters['fine speed'][i]
+            csespeed = parameters['corse speed'][i]
+            if parameters['direction'][i]:
+                stVals[i] += (csespeed + (fnespeed / maxchannels[i])) * (deltaTime / 1e+8)
+            else:
+                stVals[i] -= (csespeed - (fnespeed / maxchannels[i])) * (deltaTime / 1e+8)
+        parameters['val'][i] = stVals[i]
+
+    return newTime
 
 if __name__ == '__main__':
-    windowName = 'spiral'
     createSliderWindow()
-    start = 0
+    time = time_ns()
     while True:
-
-        speed = parameters['speed']
-
-        if parameters['direction'] == 'forward':
-            start += speed
-        elif parameters['direction'] == 'reverse':
-            start -= speed
-        im = spiral()
-        cv2.imshow(windowName,im)
-        cv2.waitKey(1)
+        time = calculateMovement(time)
+        spiral()
