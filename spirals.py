@@ -7,7 +7,7 @@ from time import time_ns
 # defaults
 parameters = {
     'imageSize':500,
-    'graph':{'fill':True,'phase':False,'spiral':False,'unit':False,'time':False},
+    'graph':{'fill':True,'phase':False,'spiral':False,'unit':False,'time':True},
     'colorspace':'BGR',
     'clock':100,
     'timeAngle':None,
@@ -19,7 +19,7 @@ parameters = {
     'angle':0,
     'phase angle':[0,0,0],
     'corse angle dif':[4,0,0],
-    'fine angle dif':[180,180,180],
+    'fine angle dif':[179,179,179],
     'trig':['none','none','none'],
     'direction':['fwd','fwd','fwd'],
     'fine speed':[0,0,0],
@@ -162,11 +162,14 @@ def spiral():
                 if chanangles[i] >= angles[0] and chanangles[i] < angles[1]:
                     image = cv2.fillPoly(image,[poly1],[0xFF,0xFF,0xFF])
                 else:
-                    color = [0,0,0]
+                    if parameters['colorspace'] == 'HSV':
+                        color = [stVals[0],150,200]
+                    else:
+                        color = [0,0,0]
                     if i < 3:
                         color[i] = j / 360 * maxchannels[i]
                         image = cv2.fillPoly(image,[poly1],color)
-                        cv2.line(image,poly1[0],poly1[3],[0xFF,0xFF,0xFF])
+                        cv2.line(image,poly1[0],poly1[3],[maxchannels[0],maxchannels[1],maxchannels[2]])
                     cv2.line(image,poly1[1],poly1[2],[0xFF,0xFF,0xFF])
 
     # phase diagram
@@ -224,13 +227,13 @@ def change(*args):
     else:
         parameters[args[1][0]] = args[1][1]
     if parameters['colorspace'] == 'HSV':
-        parameters['maxblu'] = 180
-        parameters['maxgen'] = 256
-        parameters['maxred'] = 256
+        parameters['maxval'][0] = 180
+        parameters['maxval'][1] = 256
+        parameters['maxval'][2] = 256
     elif parameters['colorspace'] == 'BGR':
-        parameters['maxblu'] = 256
-        parameters['maxgen'] = 256
-        parameters['maxred'] = 256
+        parameters['maxval'][0] = 256
+        parameters['maxval'][1] = 256
+        parameters['maxval'][2] = 256
     pass
 
 # hek
