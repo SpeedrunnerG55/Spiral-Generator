@@ -28,7 +28,8 @@ parameters = {
     'val':[0,0,0],
     'maxval':[0xFF,0xFF,0xFF],
     'frequency':[1,0,0],
-    'amplitude':[1,0,0]
+    'amplitude':[1,0,0],
+    'colorcells':8
 }
 
 def spiral():
@@ -46,10 +47,6 @@ def spiral():
     # color diferential per angle change
     fneDifs = [parameters['fine angle dif'][i] for i in range(3)]
     cseDifs = [parameters['corse angle dif'][i] for i in range(3)]
-
-    # storage for prev1ious positions
-    prev1 = None
-    prev2 = None
 
     # width of the picture
     imageSize = parameters['imageSize'] + 1
@@ -70,18 +67,27 @@ def spiral():
 
     if parameters['graph']['fill']:
 
+        # storage for prev1ious positions
+        prev1 = None
+        prev2 = None
+
+        radii1 = [None,None]
+        radii2 = [None,None]
+
+        trig = [None,None]
+
         full = 2 * pi
 
-        for i in range(0,360 * numTurns,incriment):
+        for i in range(0,(360 * numTurns)+1,incriment):
             # current radius for fill
             r = i * lineThickness / 360
             # angle of fill in radians
             angle = i * full / 360
             # trig calculations
-            trig =  cos(angle),sin(angle)
+            trig[0] =  [cos(angle),sin(angle)]
             # polar to cartisian conversion
-            pos1 = [int(origin + trig[j] * r   ) for j in range(2)]
-            pos2 = [int(origin + trig[j] * edge) for j in range(2)]
+            pos1 = [int(origin + trig[0][j] * r   ) for j in range(2)]
+            pos2 = [int(origin + trig[0][j] * edge) for j in range(2)]
             # calculate color
             color = [(stVals[j] + i * (cseDifs[j] * 180  + fneDifs[j] - 180) / maxchannels[j]) % maxchannels[j] for j in range(3)]
             # filling the position
@@ -103,24 +109,24 @@ def spiral():
                     distance = int(sqrt(abs(pos1[0] - prev1[0])**2 + abs(pos1[1] - prev1[1])**2))
                     cv2.ellipse(image, (pos1, (distance/MA,distance/SA),i + rotation), color, -1)
                 elif parameters['fill'] == 'polygon':
-                    if i > 0:
+                    # radius of each point given each trig value
+                    radii1[0] = [r    - j * lineThickness for j in range(2)]
+                    radii2[0] = [edge - j * lineThickness for j in range(2)]
+                    if radii1[1] != None:
                         # a really dumb way to map 0,1,1,0 to 0,1,2,3
-                        radiusMap = [0,1,1,0]
-                        # convert i into radians for i and i + 1 returning 2 angles
-                        angles = [(i - (j * incriment)) * full / 360 for j in range(2)]
-                        # calculate sin and cos trig values for both angles
-                        Trigs = [[cos(angles[j]),sin(angles[j])] for j in range(2)]
-                        # radius of each point given each trig value
-                        radii = [((i - ((j > 1) * incriment)) * lineThickness / 360) - radiusMap[j] * lineThickness for j in range(4)]
+                        radiimap = [0,1,1,0]
                         # create an array of points, in a circular fasion from one angle then the next radii and back in the prev1ious angle
-                        poly1 = array([[int(origin + Trigs[k > 1][l] * (radii[k]))                            for l in range (2)] for k in range(4)])
-                        poly2 = array([[int(origin + Trigs[k > 1][l] * (edge - radiusMap[k] * lineThickness)) for l in range (2)] for k in range(4)])
+                        poly1 = array([[int(origin + trig[k > 1][l] * radii1[k > 1][radiimap[k]]) for l in range (2)] for k in range(4)])
+                        poly2 = array([[int(origin + trig[k > 1][l] * radii2[k > 1][radiimap[k]]) for l in range (2)] for k in range(4)])
                         # convert to degrees then do mod 360 and convert back
                         image = cv2.fillPoly(image,[poly2],color)
                         image = cv2.fillPoly(image,[poly1],color)
                         # for j in range(4):
                         #     cv2.line(image,poly1[j],poly1[(j + 1) % 4],[0xFF,0xFF,0xFF])
-                        #     cv2.line(image,poly2[j],poly2[(j + 1) % 4],[0xFF,0xFF,0xFF])
+                            # cv2.line(image,poly2[j],poly2[(j + 1) % 4],[0xFF,0xFF,0xFF])
+                    radii1[1] = radii1[0]
+                    radii2[1] = radii2[0]
+                    trig[1] = trig[0]
 
             prev1 = pos1
             prev2 = pos2
@@ -161,11 +167,11 @@ def spiral():
             colorTrigs = [[cos(angles[k]),sin(angles[k])] for k in range(2)]
             for i in range(4):
                 # create an array of points, in a circular fasion from one radii then the next angle and back in the prev1ious radii
-                poly1 = array([[int(center[l] + colorTrigs[k > 1][l] * radii[i+[0,1,1,0][k]]) for l in range (2)] for k in range(4)])
+                poly = array([[int(center[l] + colorTrigs[k > 1][l] * radii[i+[0,1,1,0][k]]) for l in range (2)] for k in range(4)])
                 # convert to degrees then do mod 360 and convert back
                 chanangles[i] = (chanangles[i] * 360 / full % 360) * full / 360
                 if chanangles[i] >= angles[0] and chanangles[i] < angles[1]:
-                    image = cv2.fillPoly(image,[poly1],[0xFF,0xFF,0xFF])
+                    image = cv2.fillPoly(image,[poly],[0xFF,0xFF,0xFF])
                 else:
                     if parameters['colorspace'] == 'HSV':
                         color = [stVals[0],150,200]
@@ -173,9 +179,9 @@ def spiral():
                         color = [0,0,0]
                     if i < 3:
                         color[i] = j / 360 * maxchannels[i]
-                        image = cv2.fillPoly(image,[poly1],color)
-                        cv2.line(image,poly1[0],poly1[3],[maxchannels[0],maxchannels[1],maxchannels[2]])
-                    cv2.line(image,poly1[1],poly1[2],[0xFF,0xFF,0xFF])
+                        image = cv2.fillPoly(image,[poly],color)
+                        cv2.line(image,poly[0],poly[3],[maxchannels[0],maxchannels[1],maxchannels[2]])
+                    cv2.line(image,poly[1],poly[2],[0xFF,0xFF,0xFF])
 
     # colorspace graph
     if parameters['graph']['colorspace']:
@@ -184,9 +190,9 @@ def spiral():
         offset = int(imageSize / 16)
         width = int(imageSize / 6)
 
-        div = 16
+        div = parameters['colorcells'] + 1
 
-        sub = int(width / div)
+        sub = int(width / div) + 1
         width = sub * div
 
         tl = offset
@@ -201,7 +207,9 @@ def spiral():
                 for k in range(sub):
                     for l in range(sub):
                         red = k / (sub) * maxchannels[2]
-                        image[i + offset + k][j + offset + l] = [blu,grn,red]
+                        y = (i + offset + k) % imageSize
+                        x = (j + offset + l) % imageSize
+                        image[y][x] = [blu,grn,red]
 
     # phase diagram
     if parameters['graph']['phase']:
@@ -328,7 +336,8 @@ def createControlls():
         'lineThickness':256,
         'majr axis':30,
         'semi axis':30,
-        'angle':360
+        'angle':360,
+        'colorcells':20
    }
 
     for cfg in general_configs:
