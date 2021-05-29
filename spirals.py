@@ -65,7 +65,11 @@ def spiral():
     # amount to incriment each fill cycle
     incriment = parameters['incriment'] + 1
 
-    if parameters['graph']['fill']:
+    chandiffs = [(cseDifs[j] * 180  + fneDifs[j] - 180) / maxchannels[j] for j in range(3)]
+
+    graphlist = parameters['graph']
+
+    if graphlist['fill']:
 
         # storage for prev1ious positions
         prev1 = None
@@ -85,13 +89,13 @@ def spiral():
             # angle of fill in radians
             angle = i * full / 360
             # trig calculations
-            trig =  [cos(angle),sin(angle)]
+            trig = [cos(angle),sin(angle)]
             # calculate color
-            color = [(stVals[j] + i * (cseDifs[j] * 180  + fneDifs[j] - 180) / maxchannels[j]) % maxchannels[j] for j in range(3)]
+            color = [(stVals[j] + i * chandiffs[j]) % maxchannels[j] for j in range(3)]
             # filling the graph
             if fillType == 'polygon':
                 # radius of each point given each trig value
-                radii1 = [r,r - lineWidth]
+                radii1 = [r   ,r    - lineWidth]
                 radii2 = [edge,edge - lineWidth]
                 # get points for these two radii
                 points1[0] = [[int(origin + trig[l] * radii1[k]) for l in range (2)] for k in range(2)]
@@ -135,14 +139,14 @@ def spiral():
 
 
     # spiral graph
-    if parameters['graph']['spiral']:
+    if graphlist['spiral']:
         full = 2 * pi
         for i in range(0,360 * numTurns,incriment):
             if i > 0:
                 angles = [(i - (j * incriment)) * full          / 360 for j in range(2)]
                 radii  = [(i - (j * incriment)) * lineWidth / 360 for j in range(2)]
                 carts  = [[int(origin + cos(angles[j]) * radii[j]), int(origin + sin(angles[j]) * radii[j])] for j in range(2)]
-                channels = [stVals[j] + i * (cseDifs[j] * 180  + fneDifs[j] - 180) / maxchannels[j] for j in range(3)]
+                channels = [stVals[j] + i * chandiffs[j] for j in range(3)]
                 part = int(channels[0] / maxchannels[0]) % 2
                 if part:
                     cv2.line(image,carts[0],carts[1],[0,0xFF,0])
@@ -150,7 +154,7 @@ def spiral():
                     cv2.line(image,carts[0],carts[1],[0,0,0xFF])
 
     # time cycle graph
-    if parameters['graph']['time']:
+    if graphlist['time']:
         full = 2 * pi
         # position
         offset = imageSize / 3
@@ -187,7 +191,7 @@ def spiral():
                     cv2.line(image,poly[1],poly[2],[0xFF,0xFF,0xFF])
 
     # colorspace graph
-    if parameters['graph']['colorspace']:
+    if graphlist['colorspace']:
         full = 2 * pi
         # position
         offset = int(imageSize / 16)
@@ -195,35 +199,39 @@ def spiral():
 
         div = parameters['colorcells'] + 1
 
-        sub = int(width / div) + 1
-        width = sub * div
+        inc = int(width / div) + 1
+        width = inc * div
 
         tl = offset
         br = offset + width - 1
         # size
         cv2.rectangle(image,(tl - 1,tl - 1),(br + 1,br + 1),[255,255,255],1)
 
-        for i in range(0,width,sub):
+        for i in range(0,width,inc):
             blu = i / (width) * maxchannels[0]
-            for j in range(0,width,sub):
+            for j in range(0,width,inc):
                 grn = j / (width) * maxchannels[1]
-                for k in range(sub):
-                    for l in range(sub):
-                        red = k / (sub) * maxchannels[2]
+                for k in range(inc):
+                    for l in range(inc):
+                        red = k / (inc) * maxchannels[2]
                         y = (i + offset + k) % imageSize
                         x = (j + offset + l) % imageSize
                         image[y][x] = [blu,grn,red]
 
     # phase diagram
-    if parameters['graph']['phase']:
-        tl = (origin - edge - 1, origin + edge + (2 * lineWidth) - 1)
-        br = (origin + edge + 1, origin + edge + (2 * lineWidth) + numTurns + 1)
+    if graphlist['phase']:
+        top = origin + edge + (2 * lineWidth)
+        left = origin - edge
+        right = origin + edge
+        tl = (left - 1, top - 1)
+        br = (right + 1, top + numTurns + 1)
         cv2.rectangle(image,tl,br,[255,255,255],1)
+        ratio = (2 * edge) / 360
         for i in range(0,360 * numTurns,incriment):
-            x = origin - edge + int((i % 360) * (2 * edge) / 360)
-            y = origin + edge + (2 * lineWidth) + int(i / 360)
+            x = left + int((i % 360) * ratio)
+            y = top + int(i / 360)
             pos = (x,y)
-            channels = [(stVals[j] + i * (cseDifs[j] * 180  + fneDifs[j] - 180) / maxchannels[j]) % maxchannels[j] for j in range(3)]
+            channels = [(stVals[j] + i * chandiffs[j]) % maxchannels[j] for j in range(3)]
             if i % 360 == 0:
                 channels = [0xFF,0xFF,0xFF]
             elif i % 90 == 0:
@@ -237,7 +245,7 @@ def spiral():
             cv2.circle(image,pos,0,channels)
 
     # unit circle
-    if parameters['graph']['unit']:
+    if graphlist['unit']:
         cv2.circle(image,(origin,origin),edge,[0xFF,0xFF,0xFF])
         for i in range(6):
             angle = i * (pi/6)
@@ -252,15 +260,20 @@ def spiral():
             end2 = [origin - trigs[j] for j in range(2)]
             cv2.line(image,end1,end2,[0xFF,0xFF,0])
 
+    # unload parameter
+    colorspace = parameters['colorspace']
+
     # display data as in different colorspace
-    if parameters['colorspace'] == 'HSV':
-        image = cv2.cvtColor(image,cv2.COLOR_HSV2BGR)
-    if parameters['colorspace'] == 'LUV':
-        image = cv2.cvtColor(image,cv2.COLOR_LUV2BGR)
-    if parameters['colorspace'] == 'YUV':
-        image = cv2.cvtColor(image,cv2.COLOR_YUV2BGR)
-    if parameters['colorspace'] == 'LAB':
-        image = cv2.cvtColor(image,cv2.COLOR_LAB2BGR)
+    if colorspace != 'BGR':
+        if colorspace == 'HSV':
+            code = cv2.COLOR_HSV2BGR
+        if colorspace == 'LUV':
+            code = cv2.COLOR_LUV2BGR
+        if colorspace == 'YUV':
+            code = cv2.COLOR_YUV2BGR
+        if colorspace == 'LAB':
+            code = cv2.COLOR_LAB2BGR
+        image = cv2.cvtColor(image,code)
 
     cv2.imshow(windowName,image)
     cv2.waitKey(1)
@@ -314,20 +327,29 @@ def createControlls():
 
     height = 120
     width = height * 8
-    size = int(height / 40)
-    y = int(height * 2 / 3)
+    size1 = int(height / 40)
+    size2 = int(height / 120)
+    y1 = int(height * 3 / 5)
+    y2 = int(height * 7 / 8)
 
     blank = np.empty((height,width,3),dtype=np.uint8)
 
     for i in range(blank.shape[0]):
         for j in range(blank.shape[1]):
             for k in range(3):
-                blank[i][j][k] *= 2/3
+                blank[i][j][k] += j / blank.shape[1] * 200
+                blank[i][j][k] *= 3/5
+
 
     blank = cv2.cvtColor(blank,cv2.COLOR_BGR2GRAY)
 
-    cv2.putText(blank,windowName,(30,y),cv2.FORMATTER_FMT_DEFAULT,size,(100, 0, 0),3)
-    cv2.putText(blank,windowName,(30,y),cv2.FORMATTER_FMT_DEFAULT,size,(200, 0, 0),2)
+    cv2.putText(blank,windowName,(30,y1),cv2.FORMATTER_FMT_DEFAULT,size1,(100, 0, 0),3)
+    cv2.putText(blank,windowName,(30,y1),cv2.FORMATTER_FMT_DEFAULT,size1,(200, 0, 0),2)
+
+    cv2.putText(blank,'ctrl + p for more controls',(30,y2),cv2.FORMATTER_FMT_DEFAULT,size2,(100, 0, 0),3)
+    cv2.putText(blank,'ctrl + p for more controls',(30,y2),cv2.FORMATTER_FMT_DEFAULT,size2,(200, 0, 0),2)
+
+
     cv2.imshow(windowName,blank)
 
     suffix = ['blue','green','red']
