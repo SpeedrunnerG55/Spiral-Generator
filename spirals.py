@@ -103,21 +103,24 @@ def spiral():
                     distance = int(sqrt(abs(pos1[0] - prev1[0])**2 + abs(pos1[1] - prev1[1])**2))
                     cv2.ellipse(image, (pos1, (distance/MA,distance/SA),i + rotation), color, -1)
                 elif parameters['fill'] == 'polygon':
-                    # a really dumb way to map 0,1,1,0 to 0,1,2,3
-                    radiusMap = [0,1,1,0]
-                    # convert i into radians for i and i + 1 returning 2 angles
-                    angles = [(i + (j * incriment)) * full / 360 for j in range(2)]
-                    # calculate sin and cos trig values for both angles
-                    Trigs = [[cos(angles[j]),sin(angles[j])] for j in range(2)]
-                    # create an array of points, in a circular fasion from one angle then the next radii and back in the prev1ious angle
-                    poly1 = array([[int(origin + Trigs[k > 1][l] * (r    - radiusMap[k] * lineThickness)) for l in range (2)] for k in range(4)])
-                    poly2 = array([[int(origin + Trigs[k > 1][l] * (edge - radiusMap[k] * lineThickness)) for l in range (2)] for k in range(4)])
-                    # convert to degrees then do mod 360 and convert back
-                    image = cv2.fillPoly(image,[poly2],color)
-                    image = cv2.fillPoly(image,[poly1],color)
-                    # for j in range(4):
-                    #     cv2.line(image,poly1[j],poly1[(j + 1) % 4],[0xFF,0xFF,0xFF])
-                    #     cv2.line(image,poly2[j],poly2[(j + 1) % 4],[0xFF,0xFF,0xFF])
+                    if i > 0:
+                        # a really dumb way to map 0,1,1,0 to 0,1,2,3
+                        radiusMap = [0,1,1,0]
+                        # convert i into radians for i and i + 1 returning 2 angles
+                        angles = [(i - (j * incriment)) * full / 360 for j in range(2)]
+                        # calculate sin and cos trig values for both angles
+                        Trigs = [[cos(angles[j]),sin(angles[j])] for j in range(2)]
+                        # radius of each point given each trig value
+                        radii = [((i - ((j > 1) * incriment)) * lineThickness / 360) - radiusMap[j] * lineThickness for j in range(4)]
+                        # create an array of points, in a circular fasion from one angle then the next radii and back in the prev1ious angle
+                        poly1 = array([[int(origin + Trigs[k > 1][l] * (radii[k]))                            for l in range (2)] for k in range(4)])
+                        poly2 = array([[int(origin + Trigs[k > 1][l] * (edge - radiusMap[k] * lineThickness)) for l in range (2)] for k in range(4)])
+                        # convert to degrees then do mod 360 and convert back
+                        image = cv2.fillPoly(image,[poly2],color)
+                        image = cv2.fillPoly(image,[poly1],color)
+                        # for j in range(4):
+                        #     cv2.line(image,poly1[j],poly1[(j + 1) % 4],[0xFF,0xFF,0xFF])
+                        #     cv2.line(image,poly2[j],poly2[(j + 1) % 4],[0xFF,0xFF,0xFF])
 
             prev1 = pos1
             prev2 = pos2
@@ -126,15 +129,16 @@ def spiral():
     if parameters['graph']['spiral']:
         full = 2 * pi
         for i in range(0,360 * numTurns,incriment):
-            radii  = [(i + (j * incriment)) * lineThickness / 360 for j in range(2)]
-            angles = [(i + (j * incriment)) * full          / 360 for j in range(2)]
-            carts  = [[int(origin + cos(angles[j]) * radii[j]), int(origin + sin(angles[j]) * radii[j])] for j in range(2)]
-            channels = [stVals[j] + i * (cseDifs[j] * 180  + fneDifs[j] - 180) / maxchannels[j] for j in range(3)]
-            part = int(channels[0] / maxchannels[0]) % 2
-            if part:
-                cv2.line(image,carts[0],carts[1],[0,0xFF,0])
-            else:
-                cv2.line(image,carts[0],carts[1],[0,0,0xFF])
+            if i > 0:
+                angles = [(i - (j * incriment)) * full          / 360 for j in range(2)]
+                radii  = [(i - (j * incriment)) * lineThickness / 360 for j in range(2)]
+                carts  = [[int(origin + cos(angles[j]) * radii[j]), int(origin + sin(angles[j]) * radii[j])] for j in range(2)]
+                channels = [stVals[j] + i * (cseDifs[j] * 180  + fneDifs[j] - 180) / maxchannels[j] for j in range(3)]
+                part = int(channels[0] / maxchannels[0]) % 2
+                if part:
+                    cv2.line(image,carts[0],carts[1],[0,0xFF,0])
+                else:
+                    cv2.line(image,carts[0],carts[1],[0,0,0xFF])
 
     # time cycle graph
     if parameters['graph']['time']:
