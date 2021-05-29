@@ -1,4 +1,5 @@
 import cv2
+import imageio
 import numpy as np
 from numpy import array
 from math import sin, cos, tan, pi, sqrt
@@ -6,6 +7,7 @@ from time import time_ns
 
 # defaults
 parameters = {
+    'save':False,
     'imageSize':500,
     'graph':{'fill':True,'phase':True,'spiral':False,'unit':False,'time':True,'colorspace':True},
     'colorspace':'BGR',
@@ -277,6 +279,7 @@ def spiral():
 
     cv2.imshow(windowName,image)
     cv2.waitKey(1)
+    return image
 
 def change(*args):
     print('change',args[1])
@@ -410,6 +413,8 @@ def createControlls():
 
     cv2.createButton('reset',reset)
 
+    cv2.createButton('save',save)
+
 
 def calculateMovement(oldTime):
     newTime = time_ns()
@@ -456,9 +461,34 @@ def calculateMovement(oldTime):
 
     return newTime
 
+def save(*args):
+    # lol why did i even make this a funciton, or right i had to DX
+    parameters['save'] = True
+
 if __name__ == '__main__':
     createControlls()
     time = time_ns()
+    first = None
+
+    frames = []
+    image_count = 0
+
     while True:
         time = calculateMovement(time)
-        spiral()
+        frame = spiral()
+        if parameters['save']:
+            equal = np.array_equal(first,frame)
+            if equal or image_count > 100:
+                break
+            else:
+                frames.append(frame)
+                image_count += 1
+
+            if np.array_equal(first,None):
+                first = frame
+
+    print("Saving GIF file")
+    with imageio.get_writer("spiral.gif", mode="I") as writer:
+        for idx, frame in enumerate(frames):
+            print("Adding frame to GIF file: ", idx + 1)
+            writer.append_data(frame)
