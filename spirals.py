@@ -56,11 +56,13 @@ def spiral():
     # center of image
     origin = int(imageSize / 2)
 
+    fillRadius = int(imageSize / 3)
+
     # calculations to keep the plot within the immage
     lineWidth = parameters['lineWidth'] + 1
     # calculate number of turn such that the radious of the graph is 1/3 of the screen width
-    numTurns = int(imageSize / lineWidth / 3)
-    # radius for edge positions
+    numTurns = int(fillRadius / lineWidth)
+    # storage for image
     image = np.full((imageSize,imageSize,3),[0,0,0],dtype=np.uint8)
 
     # amount to incriment each fill cycle
@@ -83,8 +85,8 @@ def spiral():
             points = [None,None]
 
         for i in range(0,(360 * numTurns)+1,incriment):
-            # current radius for fill
-            r = i * lineWidth / 360
+            # current fillRadius for fill
+            r = (i * lineWidth / 360)
 
             if r > (numTurns - 1) * lineWidth:
                 r = (numTurns - 1) * lineWidth
@@ -97,23 +99,24 @@ def spiral():
             color = [(stVals[j] + i * chandiffs[j]) % maxchannels[j] for j in range(3)]
             # filling the graph
             if fillType == 'polygon':
-                # radius, and the one inwards
-                radii1 = [r,r - lineWidth]
+                # fillRadius, and the one inwards
+                radii1 = [r,(i * lineWidth / 360) - lineWidth]
                 # get points for these two radii
                 points[0] = [[int(origin + trig[l] * radii1[k]) for l in range (2)] for k in range(2)]
                 if i > 0:
-                    # create an array of points, in a circular fasion from one angle then the next radii and back in the previous angle
+                    # join the last to points with the currect two points into an array
                     poly = array(points[0] + points[1])
                     # apply polygon
                     image = cv2.fillPoly(image,[poly],color)
                     # for j in range(4):
                     #     cv2.line(image,poly[j],poly[(j + 1) % 4],[0xFF,0xFF,0xFF])
+                # reverse order of last two points then save them
                 points[1] = [points[0][1],points[0][0]]
 
             else:
                 # polar to cartisian conversion
-                pos = [int(origin + trig[j] * r   ) for j in range(2)]
-                if prev != None:
+                pos = [int(origin + trig[j] * r) for j in range(2)]
+                if i > 0:
                     if fillType == 'line':
                         cv2.line(image,prev,pos,color,lineWidth)
                     elif fillType == 'rectangle center':
@@ -150,11 +153,11 @@ def spiral():
         offset = imageSize / 3
         center = int((imageSize / 2) + offset),int((imageSize / 2) - offset)
         # size
-        radius = edge / 2.6
+        timeRadius = fillRadius / 2.6
         # width of each loop
-        width = radius / 6
-        # radius of each loop end
-        radii = [(radius - i * width) for i in range(5)]
+        width = timeRadius / 6
+        # fillRadius of each loop end
+        radii = [(timeRadius - i * width) for i in range(5)]
         chanangles = [(stVals[i] / maxchannels[i]) * full for i in range(3)]
         chanangles.append(parameters['timeAngle'])
         # circular gradiants
@@ -184,8 +187,8 @@ def spiral():
     if graphlist['colorspace']:
         full = 2 * pi
         # position
-        offset = int(imageSize / 16)
-        width = int(imageSize / 6)
+        offset = int(imageSize / 30)
+        width = int(imageSize / 5)
 
         div = parameters['colorcells'] + 1
 
@@ -210,13 +213,13 @@ def spiral():
 
     # phase diagram
     if graphlist['phase']:
-        top = origin + edge + (2 * lineWidth)
-        left = origin - edge
-        right = origin + edge
+        top = origin + fillRadius + (2 * lineWidth)
+        left = origin - fillRadius
+        right = origin + fillRadius
         tl = (left - 1, top - 1)
         br = (right + 1, top + numTurns + 1)
         cv2.rectangle(image,tl,br,[255,255,255],1)
-        ratio = (2 * edge) / 360
+        ratio = (2 * fillRadius) / 360
         for i in range(0,360 * numTurns,incriment):
             x = left + int((i % 360) * ratio)
             y = top + int(i / 360)
@@ -236,16 +239,16 @@ def spiral():
 
     # unit circle
     if graphlist['unit']:
-        cv2.circle(image,(origin,origin),edge,[0xFF,0xFF,0xFF])
+        cv2.circle(image,(origin,origin),fillRadius,[0xFF,0xFF,0xFF])
         for i in range(6):
             angle = i * (pi/6)
-            trigs = int(edge * cos(angle)),int(edge * sin(angle))
+            trigs = int(fillRadius * cos(angle)),int(fillRadius * sin(angle))
             end1 = [origin + trigs[j] for j in range(2)]
             end2 = [origin - trigs[j] for j in range(2)]
             cv2.line(image,end1,end2,[0xFF,0,0xFF])
         for i in range(1,4,2):
             angle = i * (pi/4)
-            trigs = int(edge * cos(angle)),int(edge * sin(angle))
+            trigs = int(fillRadius * cos(angle)),int(fillRadius * sin(angle))
             end1 = [origin + trigs[j] for j in range(2)]
             end2 = [origin - trigs[j] for j in range(2)]
             cv2.line(image,end1,end2,[0xFF,0xFF,0])
@@ -353,7 +356,7 @@ def createControlls():
         'majr axis':30,
         'semi axis':30,
         'angle':360,
-        'colorcells':20
+        'colorcells':90
    }
 
     for cfg in general_configs:
