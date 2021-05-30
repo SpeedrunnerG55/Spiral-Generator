@@ -23,10 +23,10 @@ parameters = {
     'corse angle dif':[1,2,3],
     'fine angle dif':[149,209,89],
     'trig':['none','none','none'],
-    'direction':['fwd','fwd','fwd'],
+    'direction':[False,False,False],
     'fine speed':[0,0,0],
-    'corse speed':[0,0,0],
-    'constant':[False,False,False],
+    'corse speed':[20,10,4],
+    'constant':[True,True,True],
     'val':[0,0,0],
     'maxval':[0xFF,0xFF,0xFF],
     'frequency':[1,0,0],
@@ -61,7 +61,6 @@ def spiral():
     # calculate number of turn such that the radious of the graph is 1/3 of the screen width
     numTurns = int(imageSize / lineWidth / 3)
     # radius for edge positions
-    edge = lineWidth * numTurns
     image = np.full((imageSize,imageSize,3),[0,0,0],dtype=np.uint8)
 
     # amount to incriment each fill cycle
@@ -73,21 +72,23 @@ def spiral():
 
     if graphlist['fill']:
 
-        # storage for prev1ious positions
-        prev1 = None
-        prev2 = None
+        # storage for previous positions
+        prev = None
 
         full = 2 * pi
 
         fillType = parameters['fill']
 
         if fillType == 'polygon':
-            points1 = [None,None]
-            points2 = [None,None]
+            points = [None,None]
 
         for i in range(0,(360 * numTurns)+1,incriment):
             # current radius for fill
             r = i * lineWidth / 360
+
+            if r > (numTurns - 1) * lineWidth:
+                r = (numTurns - 1) * lineWidth
+
             # angle of fill in radians
             angle = i * full / 360
             # trig calculations
@@ -96,49 +97,36 @@ def spiral():
             color = [(stVals[j] + i * chandiffs[j]) % maxchannels[j] for j in range(3)]
             # filling the graph
             if fillType == 'polygon':
-                # radius of each point given each trig value
-                radii1 = [r   ,r    - lineWidth]
-                radii2 = [edge,edge - lineWidth]
+                # radius, and the one inwards
+                radii1 = [r,r - lineWidth]
                 # get points for these two radii
-                points1[0] = [[int(origin + trig[l] * radii1[k]) for l in range (2)] for k in range(2)]
-                points2[0] = [[int(origin + trig[l] * radii2[k]) for l in range (2)] for k in range(2)]
+                points[0] = [[int(origin + trig[l] * radii1[k]) for l in range (2)] for k in range(2)]
                 if i > 0:
-                    # create an array of points, in a circular fasion from one angle then the next radii and back in the prev1ious angle
-                    poly1 = array(points1[0] + points1[1])
-                    poly2 = array(points2[0] + points2[1])
+                    # create an array of points, in a circular fasion from one angle then the next radii and back in the previous angle
+                    poly = array(points[0] + points[1])
                     # apply polygon
-                    image = cv2.fillPoly(image,[poly1],color)
-                    image = cv2.fillPoly(image,[poly2],color)
+                    image = cv2.fillPoly(image,[poly],color)
                     # for j in range(4):
-                    #     cv2.line(image,poly1[j],poly1[(j + 1) % 4],[0xFF,0xFF,0xFF])
-                        # cv2.line(image,poly2[j],poly2[(j + 1) % 4],[0xFF,0xFF,0xFF])
-                points1[1] = [points1[0][1],points1[0][0]]
-                points2[1] = [points2[0][1],points2[0][0]]
+                    #     cv2.line(image,poly[j],poly[(j + 1) % 4],[0xFF,0xFF,0xFF])
+                points[1] = [points[0][1],points[0][0]]
 
             else:
                 # polar to cartisian conversion
-                pos1 = [int(origin + trig[j] * r   ) for j in range(2)]
-                pos2 = [int(origin + trig[j] * edge) for j in range(2)]
-                if prev1 != None:
+                pos = [int(origin + trig[j] * r   ) for j in range(2)]
+                if prev != None:
                     if fillType == 'line':
-                        cv2.line(image,prev1,pos1,color,lineWidth)
-                        cv2.line(image,prev2,pos2,color,lineWidth)
+                        cv2.line(image,prev,pos,color,lineWidth)
                     elif fillType == 'rectangle center':
-                        cv2.rectangle(image,prev1,pos1,color,lineWidth)
-                    elif fillType == 'rectangle edge':
-                        cv2.rectangle(image,prev2,pos2,color,lineWidth)
+                        cv2.rectangle(image,prev,pos,color,lineWidth)
                     elif fillType == 'circle':
-                        cv2.circle(image,pos1,int(lineWidth/2),color,-1)
-                        cv2.circle(image,pos2,int(lineWidth/2),color,-1)
+                        cv2.circle(image,pos,int(lineWidth/2),color,-1)
                     elif fillType == 'ellipse':
                         MA = parameters['majr axis'] + 1
                         SA = parameters['semi axis'] + 1
                         rotation = parameters['angle']
-                        distance = int(sqrt(abs(pos1[0] - prev1[0])**2 + abs(pos1[1] - prev1[1])**2))
-                        cv2.ellipse(image, (pos1, (distance/MA,distance/SA),i + rotation), color, -1)
-                prev1 = pos1
-                prev2 = pos2
-
+                        distance = int(sqrt(abs(pos[0] - prev[0])**2 + abs(pos[1] - prev[1])**2))
+                        cv2.ellipse(image, (pos, (distance/MA,distance/SA),i + rotation), color, -1)
+                prev = pos
 
     # spiral graph
     if graphlist['spiral']:
@@ -175,7 +163,7 @@ def spiral():
             angles = [(j + k * step) * full / 360 for k in range(2)]
             colorTrigs = [[cos(angles[k]),sin(angles[k])] for k in range(2)]
             for i in range(4):
-                # create an array of points, in a circular fasion from one radii then the next angle and back in the prev1ious radii
+                # create an array of points, in a circular fasion from one radii then the next angle and back in the previous radii
                 poly = array([[int(center[l] + colorTrigs[k > 1][l] * radii[i+[0,1,1,0][k]]) for l in range (2)] for k in range(4)])
                 # convert to degrees then do mod 360 and convert back
                 chanangles[i] = (chanangles[i] * 360 / full % 360) * full / 360
@@ -390,13 +378,13 @@ def createControlls():
 
         for f in range(len(buttonTypes)):
             btype = buttonTypes[f]
-            cv2.createButton(color + ' ' + btype,check,[btype,a],1,0)
+            cv2.createButton(color + ' ' + btype,check,[btype,a],1,parameters[btype][a])
 
         for u in range(len(trigs)):
             trig = trigs[u]
-            cv2.createButton(color + ' ' + trig,change,['trig',a,trig] ,2,0)
+            cv2.createButton(color + ' ' + trig,change,['trig',a,trig] ,2,parameters['trig'][a] == trig)
 
-    filltypes = ['rectangle center','rectangle edge','line','circle','ellipse','polygon']
+    filltypes = ['rectangle center','line','circle','ellipse','polygon']
 
     for fill in filltypes:
         cv2.createButton(fill + ' fill',change,['fill',fill],2,parameters['fill'] == fill)
@@ -478,7 +466,7 @@ if __name__ == '__main__':
         frame = spiral()
         if parameters['save']:
             equal = np.array_equal(first,frame)
-            if equal or image_count > 100:
+            if equal or image_count > 500:
                 break
             else:
                 frames.append(frame)
