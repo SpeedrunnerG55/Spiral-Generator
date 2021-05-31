@@ -42,7 +42,7 @@ def spiral():
     # read parameters, calculae movment (starting color value), fill in color
     # starting vlue per channel
     stVals = [parameters['val'][i] for i in range(3)]
-    
+
     # maximum value per chanel
     maxchannels = [parameters['maxval'][i] for i in range(3)]
 
@@ -92,8 +92,10 @@ def spiral():
     # conversion factors
     widthratio = lineWidth / 360
     incrimentRatio = 360/incriment
-    radiansRatio = 2 * pi / 360
-    degreesRatio = 360 / 2 * pi
+    radiansRatio = (2 * pi) / 360
+    degreesRatio = 360 / (2 * pi)
+
+    white = [0xFF,0xFF,0xFF]
 
     # list of what graphs to graph
     graphlist = parameters['graph']
@@ -179,7 +181,7 @@ def spiral():
         chanangles = [(stVals[i] / maxchannels[i]) * full for i in range(3)]
         chanangles.append(parameters['timeAngle'])
         # circular gradiants
-        step = int(360 / 60)
+        step = 6
         for j in range(0,360,step):
             angles = [(j + k * step) * radiansRatio for k in range(2)]
             colorTrigs = [[cos(angles[k]),sin(angles[k])] for k in range(2)]
@@ -187,9 +189,9 @@ def spiral():
                 # create an array of points, in a circular fasion from one radii then the next angle and back in the previous radii
                 poly = array([[int(center[l] + colorTrigs[k > 1][l] * radii[i+[0,1,1,0][k]]) for l in range (2)] for k in range(4)])
                 # convert to degrees then do mod 360 and convert back to radians
-                chanangles[i] = (chanangles[i] * degreesRatio % 360) * radiansRatio
+                chanangles[i] = ((chanangles[i] * degreesRatio) % 360) * radiansRatio
                 if chanangles[i] >= angles[0] and chanangles[i] < angles[1]:
-                    image = cv2.fillPoly(image,[poly],[0xFF,0xFF,0xFF])
+                    image = cv2.fillPoly(image,[poly],white)
                 else:
                     if parameters['colorspace'] == 'HSV':
                         color = [stVals[0],150,200]
@@ -199,9 +201,9 @@ def spiral():
                         color[i] = j / 360 * maxchannels[i]
                         image = cv2.fillPoly(image,[poly],color)
                     if i == 0:
-                        cv2.line(image,poly[0],poly[3],[0xFF,0xFF,0xFF])
+                        cv2.line(image,poly[0],poly[3],white)
                     if i == 3:
-                        cv2.line(image,poly[1],poly[2],[0xFF,0xFF,0xFF])
+                        cv2.line(image,poly[1],poly[2],white)
 
     # colorspace graph
     if graphlist['colorspace']:
@@ -217,7 +219,7 @@ def spiral():
             graphwidth = int(image.shape[1] / 3)
         tl = graphOffset
         br = graphOffset + graphwidth - 1
-        cv2.rectangle(image,(tl - 1,tl - 1),(br + 1,br + 1),[255,255,255],1)
+        cv2.rectangle(image,(tl - 1,tl - 1),(br + 1,br + 1),white,1)
         distance_list = []
         point_list = []
         color_list = []
@@ -246,7 +248,7 @@ def spiral():
             index = distance_list.index(min(distance_list))
             point = point_list[index]
             color = color_list[index]
-            cv2.circle(graph,point,circlewidth,[0xFF,0xFF,0xFF],-1)
+            cv2.circle(graph,point,circlewidth,white,-1)
             if circlewidth > 1:
                 cv2.circle(graph,point,circlewidth - 1,color.tolist(),-1)
             # masking out the part of the graph i want, why not just make a small graph, i probably would not have to deal with mask hell
@@ -291,7 +293,7 @@ def spiral():
         tl = (left - 1, top - 1)
         br = (right, bottom)
         if numTurns > 0 and width > 5:
-            cv2.rectangle(image,tl,br,[255,255,255],1)
+            cv2.rectangle(image,tl,br,white,1)
         ratio = 360 / width
         end = width * numTurns
         colorspace = parameters['colorspace']
@@ -323,7 +325,7 @@ def spiral():
 
     # unit circle
     if graphlist['unit']:
-        cv2.circle(image,(origin,origin),fillRadius,[0xFF,0xFF,0xFF])
+        cv2.circle(image,(origin,origin),fillRadius,white)
         # importiant angles
         pioversix = pi/6
         pioverfour = pi/4
