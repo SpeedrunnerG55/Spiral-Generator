@@ -224,28 +224,39 @@ def spiral():
         chanangles = [(stVals[i] / maxchannels[i]) * fullRadians for i in range(3)]
         chanangles.append(parameters['timeAngle'])
         # circular gradiants
-        step = 6
-        for j in range(0,360,step):
+        step = 10
+        points = [None,None]
+        plotted = [False] * 4
+        for j in range(0,361,step):
             angleRatio = j / 360
-            angles = [(j + k * step) * radiansRatio for k in range(2)]
-            colorTrigs = [[cos(angles[k]),sin(angles[k])] for k in range(2)]
-            for i in range(4):
-                # create an array of points, in a circular fasion from one radii then the next angle and back in the previous radii
-                poly = array([[int(center[l] + colorTrigs[k > 1][l] * radii[i+[0,1,1,0][k]]) for l in range (2)] for k in range(4)])
-                if chanangles[i] >= angles[0] and chanangles[i] < angles[1]:
-                    image = cv2.fillPoly(image,[poly],uiColor)
-                else:
-                    if parameters['colorspace'] == 'HSV':
-                        color = [stVals[0],150,200]
+            angle = j * radiansRatio
+            trig = [cos(angle),sin(angle)]
+            points[0] = [[int(center[l] + trig[l] * radii[k]) for l in range (2)] for k in range(5)]
+            if j > 0:
+                for i in range(4):
+                    # good luck
+                    poly = array([points[0][i],points[0][i+1],points[1][i+1],points[1][i]])
+                    if angle >= chanangles[i] and not plotted[i]:
+                        image = cv2.fillPoly(image,[poly],uiColor)
+                        plotted[i] = True
                     else:
                         color = [0,0,0]
-                    if i < 3:
-                        color[i] = angleRatio * maxchannels[i]
+                        if i < 3:
+                            if parameters['colorspace'] == 'HSV':
+                                if i == 0:
+                                    color = [angleRatio * maxchannels[0],150,200]
+                                elif i == 1:
+                                    color = [stVals[0],angleRatio * maxchannels[1],200]
+                                elif i == 2:
+                                    color = [stVals[0],150,angleRatio * maxchannels[2]]
+                            else:
+                                color[i] = angleRatio * maxchannels[i]
                         image = cv2.fillPoly(image,[poly],color)
-                    if i == 0:
-                        cv2.line(image,poly[0],poly[3],uiColor)
-                    if i == 3:
-                        cv2.line(image,poly[1],poly[2],uiColor)
+                        if i == 0:
+                            cv2.line(image,poly[0],poly[3],uiColor)
+                        if i == 3:
+                            cv2.line(image,poly[1],poly[2],uiColor)
+            points[1] = points[0]
 
         if timing:
             times.append(stop())
