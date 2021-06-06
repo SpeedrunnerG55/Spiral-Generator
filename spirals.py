@@ -49,7 +49,7 @@ parameters = {
     'corse speed':[20,10,4],
     'constant':[True,True,True],
     'val':[0,0,0],
-    'maxval':[0xFF,0xFF,0xFF],
+    'chanSize':[0xFF,0xFF,0xFF],
     'frequency':[1,0,0],
     'amplitude':[1,0,0]
 }
@@ -87,7 +87,7 @@ def stop():
     return delta
 
 def nonZero(arg: int):
-    if arg == 0:
+    if not arg:
         arg = 1
     return arg
 
@@ -107,17 +107,18 @@ def spiral():
     # starting vlue per channel
     stVals = [parameters['val'][i] for i in range(3)]
 
-    # maximum value per chanel
-    maxchannels = [parameters['maxval'][i] for i in range(3)]
+    # maximum size and value per chanel
+    channelSize = [parameters['chanSize'][i] for i in range(3)]
+    maxVals = [channelSize[i] - 1 for i in range(3)]
 
     # phase angle
     phases = [parameters['phase angle'][i] for i in range(3)]
 
     # calculate start value
-    stVals = [stVals[i] + (phases[i] * maxchannels[i] / 360) for i in range(3)]
+    stVals = [stVals[i] + (phases[i] * channelSize[i] / 360) for i in range(3)]
 
     # restrict values
-    stVals = [stVals[i] % maxchannels[i] for i in range(3)]
+    stVals = [stVals[i] % channelSize[i] for i in range(3)]
 
     # width of the picture
     imagewidth = nonZero(parameters['image width'])
@@ -146,7 +147,7 @@ def spiral():
     # color diferential per angle change
     fneDifs = [parameters['fine angle dif'][i] for i in range(3)]
     cseDifs = [parameters['corse angle dif'][i] for i in range(3)]
-    chandiffs = [(cseDifs[j] * 180  + fneDifs[j] - 180) / maxchannels[j] for j in range(3)]
+    chandiffs = [(cseDifs[j] * 180  + fneDifs[j] - 180) / channelSize[j] for j in range(3)]
 
     # parameters for ellipsoids
     MA = nonZero(parameters['majr axis'])
@@ -175,7 +176,6 @@ def spiral():
     exp = parameters['exponent'] / 360
 
     rotX = parameters['rotateX'] / 360
-
     rotY = parameters['rotateY'] / 360
 
     aManipLinear = parameters['angle manipulation'] == 'linear'
@@ -230,7 +230,7 @@ def spiral():
                 else:
                     trig = [cos(angle * rotX),sin(angle * rotY)]
                 # calculate color
-                color = [(stVals[j] + i * chandiffs[j]) % maxchannels[j] for j in range(3)]
+                color = [(stVals[j] + i * chandiffs[j]) % channelSize[j] for j in range(3)]
                 # filling the graph
                 if fillType == 'polygon':
                     # Radius, and one inwards
@@ -243,7 +243,7 @@ def spiral():
                         radii[1] = 0
                     # get points for these two radii
                     points[0] = [[int(origin + trig[l] * radii[k]) for l in range (2)] for k in range(2)]
-                    if i > 0:
+                    if i:
                         if(points[0] == points[1]):
                             # polygon of zero size... skip it
                             continue
@@ -252,31 +252,29 @@ def spiral():
                         fillpolyList.append(poly)
                         fillangleList.append(i)
                         # apply polygon
-                        image = cv2.fillPoly(image,[poly],color)
+                        image = cv2.fillPoly(image,[poly],color,lineType=cv2.LINE_AA)
                     # save the points
                     points[1] = points[0]
                 else:
                     # polar to cartisian conversion
-                    pos = [int(origin + trig[j] * r) for j in range(2)]
-                    if i > 0:
+                    pos = [int(origin + trig[0] * r),
+                           int(origin + trig[1] * r)]
+                    if i:
                         if LintConstant:
                             thickness = lineWidth
                         else:
-                            thickness = int(sqrt(abs(pos[0] - prev[0])**2 + abs(pos[1] - prev[1])**2))
-                            if thickness == 0:
-                                thickness = 1
+                            thickness = nonZero(int(sqrt(abs(pos[0] - prev[0])**2 + abs(pos[1] - prev[1])**2)))
                             fillthicknessList.append(thickness)
                         fillposList.append([prev,pos])
                         fillangleList.append(i)
                         if fillType == 'line':
-                            cv2.line(image,prev,pos,color,thickness)
+                            cv2.line(image,prev,pos,color,thickness,lineType=cv2.LINE_AA)
                         elif fillType == 'rectangle center':
                             cv2.rectangle(image,prev,pos,color,thickness)
                         elif fillType == 'circle':
                             thickness = int(thickness/2)
                             cv2.circle(image,pos,thickness,color,-1)
                         elif fillType == 'ellipse':
-                            thickness
                             cv2.ellipse(image, (pos, (thickness/MA,thickness/SA),i + rotation), color, -1)
                     prev = pos
         else:
@@ -284,19 +282,19 @@ def spiral():
                 for i in range(len(fillangleList)):
                     deg = fillangleList[i]
                     poly = fillpolyList[i]
-                    color = [(stVals[j] + deg * chandiffs[j]) % maxchannels[j] for j in range(3)]
-                    image = cv2.fillPoly(image,[poly],color)
+                    color = [(stVals[j] + deg * chandiffs[j]) % channelSize[j] for j in range(3)]
+                    image = cv2.fillPoly(image,[poly],color,lineType=cv2.LINE_AA)
             else:
                 for i in range(len(fillangleList)):
                     deg = fillangleList[i]
-                    color = [(stVals[j] + deg * chandiffs[j]) % maxchannels[j] for j in range(3)]
+                    color = [(stVals[j] + deg * chandiffs[j]) % channelSize[j] for j in range(3)]
                     [prev,pos] = fillposList[i]
                     if LintConstant:
                         thickness = lineWidth
                     else:
                         thickness = fillthicknessList[i]
                     if fillType == 'line':
-                        cv2.line(image,prev,pos,color,thickness)
+                        cv2.line(image,prev,pos,color,thickness,lineType=cv2.LINE_AA)
                     elif fillType == 'rectangle center':
                         cv2.rectangle(image,prev,pos,color,thickness)
                     elif fillType == 'circle':
@@ -323,7 +321,7 @@ def spiral():
             else:
                 trig = [cos(angle * rotX),sin(angle * rotY)]
             point  = [int(origin + trig[j] * r) for j in range (2)]
-            if i > 0:
+            if i:
                 cv2.line(image,prev,point,uiColor)
             prev = point
         times.append(stop())
@@ -333,7 +331,7 @@ def spiral():
     if graphlist['time graph']:
 
         # size
-        timeRadius = int(image.shape[1] / 9)
+        timeRadius = int(image.shape[1] >> 3)
         # position
         center = int((image.shape[1]) - timeRadius - graphOffset),int(timeRadius + graphOffset)
 
@@ -343,23 +341,22 @@ def spiral():
         radii = [(timeRadius - i * width) for i in range(5)]
 
         global fpstime
-        fps = int(1e+9 / (time_ns() - fpstime))
+        fps = str(int(1e+9 / (time_ns() - fpstime))) + 'FPS'
         fpstime = time_ns()
-
-        fps = str(fps) + 'FPS'
 
         font_scale = 10
 
         font = cv2.FORMATTER_FMT_DEFAULT
+        lineType = cv2.LINE_AA
 
         txt_w = cv2.getTextSize(fps, font, font_scale, 1)[0][0]
         scale = font_scale
         while txt_w > (radii[4] * 2) - 4:
             scale -= 0.01
             ((txt_w, txt_h), _) = cv2.getTextSize(fps, font, scale, 1)
-        cv2.putText(image,fps,(center[0] - int(txt_w / 2),center[1] + int(txt_h / 2)),font,scale,uiColor,1)
+        cv2.putText(image,fps,(center[0] - int(txt_w / 2),center[1] + int(txt_h / 2)),font,scale,uiColor,1,lineType)
 
-        chanangles = [(stVals[i] / maxchannels[i]) * fullRadians for i in range(3)]
+        chanangles = [(stVals[i] / channelSize[i]) * fullRadians for i in range(3)]
         chanangles.append(parameters['timeAngle'])
         # circular gradiants
         step = 10
@@ -370,25 +367,25 @@ def spiral():
             angle = radians(j)
             trig = [cos(angle),sin(angle)]
             points[0] = [[int(center[l] + trig[l] * radii[k]) for l in range (2)] for k in range(5)]
-            if j > 0:
+            if j:
                 for i in range(4):
                     # good luck
                     poly = array([points[0][i],points[0][i+1],points[1][i+1],points[1][i]])
                     if angle >= chanangles[i] and not plotted[i]:
-                        image = cv2.fillPoly(image,[poly],uiColor)
+                        image = cv2.fillPoly(image,[poly],uiColor,lineType=cv2.LINE_AA)
                         plotted[i] = True
                     else:
                         color = [0,0,0]
                         if i < 3:
                             if parameters['colorspace'] == 'HSV':
                                 if i == 0:
-                                    color = [angleRatio * maxchannels[0],150,200]
+                                    color = [angleRatio * channelSize[0],150,200]
                                 elif i == 1:
-                                    color = [stVals[0],angleRatio * maxchannels[1],200]
+                                    color = [stVals[0],angleRatio * channelSize[1],200]
                                 elif i == 2:
-                                    color = [stVals[0],150,angleRatio * maxchannels[2]]
+                                    color = [stVals[0],150,angleRatio * channelSize[2]]
                             else:
-                                color[i] = angleRatio * maxchannels[i]
+                                color[i] = angleRatio * channelSize[i]
                         image = cv2.fillPoly(image,[poly],color)
                         if i == 0:
                             cv2.line(image,poly[0],poly[3],uiColor)
@@ -406,9 +403,7 @@ def spiral():
         graphwidth = int(image.shape[1] / 5)
 
         # adjust graph width to always be a perfect square
-        inc = int(sqrt(graphwidth))
-        if inc == 0:
-            inc = 1
+        inc = nonZero(int(sqrt(graphwidth)))
         graphwidth = inc**2
 
         if graphwidth > int(image.shape[1] / 3):
@@ -425,13 +420,14 @@ def spiral():
         else:
             div = [3,3,3]
         for i in range(0,graphwidth,inc):
-            blu = i / graphwidth * maxchannels[0]
+            blu = i / graphwidth * channelSize[0]
+            ioffset = i + graphOffset
             for j in range(0,graphwidth,inc):
-                grn = j / graphwidth * maxchannels[1]
+                grn = j / graphwidth * channelSize[1]
                 x = j + graphOffset
                 for k in range(inc):
-                    red = k / inc * maxchannels[2]
-                    y = i + graphOffset + k
+                    red = k / inc * channelSize[2]
+                    y = ioffset + k
                     color = [blu,grn,red]
                     distance = sqrt(abs(stVals[0]-color[0])**2 + abs(stVals[1]-color[1])**2 + abs(stVals[2]-color[2])**2)
                     if distance < threshold:
@@ -440,14 +436,16 @@ def spiral():
                             minDistance = distance
                             point = (x,y)
                         point_count += 1
-                    color = [color[i] / div[i] for i in range(3)]
+                    color = [color[0] / div[0],
+                             color[1] / div[1],
+                             color[2] / div[2]]
                     for l in range(inc):
                         image[y][x + l] = color
         # calculate the radius of the circle of points over the threshhold given the number of points (area)
         times.append(stop())
         names.append('colorspace loop')
         circlewidth = int(sqrt(point_count))
-        if circlewidth > 0:
+        if circlewidth:
             div = 2
             graph = np.zeros(image.shape,dtype=np.uint8)
             cv2.circle(graph,point,circlewidth,uiColor,-1)
@@ -479,8 +477,8 @@ def spiral():
 
     # phase diagram
     if graphlist['phase']:
-        div = 3
         threshold = parameters['phase threshold']
+        limmits = [channelSize[i] - threshold for i in range(3)]
         left = origin - 180
         right = origin + 180
         if left < graphOffset:
@@ -489,17 +487,15 @@ def spiral():
         width = right - left
         bottom = image.shape[0] - graphOffset
         top = bottom - numTurns
-        inc = int(incriment * width / 360)
-        if inc == 0:
-            inc = 1
-        if width < 360 and inc > 1:
+        inc = nonZero(int(incriment * width / 360))
+        short = width < 360
+        if short and inc > 1:
             width = int(incrimentRatio * inc)
             left = origin - int(width/2)
             right = left + width
         tl = (left - 1, top - 1)
         br = (right, bottom)
         cv2.rectangle(image,tl,br,uiColor,1)
-        short = width < 360
         if short:
             ratio = 360 / width
         end = width * numTurns
@@ -520,23 +516,27 @@ def spiral():
                 index = int(i / inc)
                 (x,y) = phaseposList[index]
                 deg = phaseangleList[index]
-            channels = [(stVals[j] + deg * chandiffs[j]) % maxchannels[j] for j in range(3)]
+            channels = [int((stVals[0] + deg * chandiffs[0]) % channelSize[0]),
+                        int((stVals[1] + deg * chandiffs[1]) % channelSize[1]),
+                        int((stVals[2] + deg * chandiffs[2]) % channelSize[2])]
             plotted = False
             for j in range(3):
-                if channels[j] > maxchannels[j] - threshold:
+                if channels[j] > limmits[j]:
                     plotted = True
-                    image[y][x][j] = maxchannels[j] - 1
+                    image[y][x][j] = maxVals[j]
             if not plotted:
-                if deg % 180 == 0:
+                if deg % 30 and deg % 45:
+                    image[y][x] = [channels[0] >> 1,
+                                   channels[1] >> 1,
+                                   channels[2] >> 1]
+                elif not deg % 180:
                     image[y][x] = [0x80,0x80,0x80]
-                elif deg % 90 == 0:
+                elif not deg % 90:
                     image[y][x] = [0x80,0,0x80]
-                elif deg % 45 == 0:
+                elif not deg % 45:
                     image[y][x] = [0x80,0x80,0]
-                elif deg % 30 == 0:
+                elif not deg % 30:
                     image[y][x] = [0,0x80,0x80]
-                else:
-                    image[y][x] = [channels[0] / div,channels[1] / div,channels[2] / div]
         times.append(stop())
         names.append('phase loop')
 
@@ -555,9 +555,9 @@ def spiral():
             end1 = [int(origin + trig[j] * fillRadius) for j in range(2)]
             end2 = [int(origin - trig[j] * fillRadius) for j in range(2)]
             if i < 6:
-                cv2.line(image,end1,end2,[0xFF,0,0xFF])
+                cv2.line(image,end1,end2,[0xFF,0,0xFF],lineType=cv2.LINE_AA)
             else:
-                cv2.line(image,end1,end2,[0xFF,0xFF,0])
+                cv2.line(image,end1,end2,[0xFF,0xFF,0],lineType=cv2.LINE_AA)
 
         times.append(stop())
         names.append('unit')
@@ -588,13 +588,13 @@ def change(*args):
         print('change parameters[{:10}] = {:10}'.format(args[1][0],args[1][1]))
         parameters[args[1][0]] = args[1][1]
     if parameters['colorspace'] == 'HSV':
-        parameters['maxval'][0] = 180
-        parameters['maxval'][1] = 256
-        parameters['maxval'][2] = 256
+        parameters['chanSize'][0] = 180
+        parameters['chanSize'][1] = 256
+        parameters['chanSize'][2] = 256
     elif parameters['colorspace'] == 'BGR':
-        parameters['maxval'][0] = 256
-        parameters['maxval'][1] = 256
-        parameters['maxval'][2] = 256
+        parameters['chanSize'][0] = 256
+        parameters['chanSize'][1] = 256
+        parameters['chanSize'][2] = 256
     pass
 
 # hek
@@ -641,7 +641,7 @@ def createControlls():
     cv2.namedWindow(windowName)
 
     height = 120
-    width = height * 8
+    width = height << 3
     size1 = int(height / 40)
     size2 = int(height / 120)
     y1 = int(height * 3 / 5)
@@ -650,22 +650,24 @@ def createControlls():
     blank = np.empty((height,width,3),dtype=np.uint8)
 
     for i in range(blank.shape[0]):
-        if i % 2 == 0:
-            showProgress((i+1)/height,'building controls image')
+        if not i % 4:
+            showProgress((i+4)/height,'building controls image')
         for j in range(blank.shape[1]):
             for k in range(3):
-                blank[i][j][k] += j / 4
+                blank[i][j][k] += j >> 2
                 blank[i][j][k] *= 3/7
 
     blank = cv2.cvtColor(blank,cv2.COLOR_BGR2GRAY)
 
     font = cv2.FORMATTER_FMT_DEFAULT
 
-    cv2.putText(blank,windowName,(30,y1),font,size1,(100, 0, 0),3)
-    cv2.putText(blank,windowName,(30,y1),font,size1,(200, 0, 0),2)
+    lineType = cv2.LINE_AA
 
-    cv2.putText(blank,'ctrl + p for more controls',(30,y2),font,size2,(100, 0, 0),3)
-    cv2.putText(blank,'ctrl + p for more controls',(30,y2),font,size2,(200, 0, 0),2)
+    cv2.putText(blank,windowName,(30,y1),font,size1,(100, 0, 0),3,lineType)
+    cv2.putText(blank,windowName,(30,y1),font,size1,(200, 0, 0),2,lineType)
+
+    cv2.putText(blank,'ctrl + p for more controls',(30,y2),font,size2,(100, 0, 0),3,lineType)
+    cv2.putText(blank,'ctrl + p for more controls',(30,y2),font,size2,(200, 0, 0),2,lineType)
 
     cv2.imshow(windowName,blank)
     cv2.waitKey(1)
@@ -785,7 +787,7 @@ def calculateMovement():
     for i in range(3):
         # load start value
         stVal = parameters['val'][i]
-        maxVal = parameters['maxval'][i]
+        maxVal = parameters['chanSize'][i]
         # i have no clue how to get constant and trig to work together pls help
 
         # trig
@@ -900,19 +902,23 @@ def graph(table,inc,names,units):
 
     gridHeight = int(graphHeight / numYs)
 
+    lineType = cv2.LINE_AA
+
     for i in range(numYs + 1):
         y = graphHeight - int((i * Ydiv)/tableMax * graphHeight) + labelHeight
         left = (yAxisWidth,y)
         right = (yAxisWidth + graphWidth,y)
-        if i == 0:
+        if not i:
             color = uiColor
+            thickness = 2
         else:
-            color = [uiColor[j] / 3 for j in range(3)]
-        cv2.line(graphImage,left,right,color)
+            color = [uiColor[j] >> 1 for j in range(3)]
+            thickness = 1
+        cv2.line(graphImage,left,right,color,thickness)
         text = '{:e}'.format((i * Ydiv)) + 'ns'
-        scale = min(fitWidth(text,yAxisWidth - 7),fitHeight(text,gridHeight - 5))
+        scale = min(fitWidth(text,yAxisWidth - 20),fitHeight(text,gridHeight - 5))
         txt_w = cv2.getTextSize(text, font,scale, 1)[0][0]
-        cv2.putText(graphImage,text,(yAxisWidth - txt_w,y - 2),font,scale,color,1)
+        cv2.putText(graphImage,text,(yAxisWidth - txt_w - 10,y - 2),font,scale,color,1,lineType)
         if(animate):
             cv2.imshow(windowName,graphImage)
             cv2.waitKey(1)
@@ -922,16 +928,18 @@ def graph(table,inc,names,units):
         x = yAxisWidth + (i * graphInc)
         top = (x,labelHeight)
         bottom = (x,graphHeight + labelHeight)
-        if i == 0:
-            color = [0xFF,0xFF,0xFF]
+        if not i:
+            color = uiColor
+            thickness = 2
         else:
-            color = [0x60,0x60,0x60]
-        cv2.line(graphImage,top,bottom,color)
+            color = [uiColor[j] >> 1 for j in range(3)]
+            thickness = 1
+        cv2.line(graphImage,top,bottom,color,thickness)
         text = str(i * graphInc) + units
         scale = fitWidth(text,graphInc)
         txt_h = cv2.getTextSize(text, font, scale, 1)[0][1]
         textHeight = graphHeight + labelHeight + txt_h + 2
-        cv2.putText(graphImage,text,(x,textHeight),font,scale,color,1)
+        cv2.putText(graphImage,text,(x,textHeight),font,scale,color,1,lineType)
         if(animate):
             cv2.imshow(windowName,graphImage)
             cv2.waitKey(1)
@@ -955,8 +963,10 @@ def graph(table,inc,names,units):
 
     averages = np.average(table,axis=0)
 
+    lineType = cv2.LINE_AA
+
     for i in range(tableLength):
-        cv2.putText(graphImage,names[i],(pos,labelTextHeight),font,scale,colors[i],1)
+        cv2.putText(graphImage,names[i],(pos,labelTextHeight),font,scale,colors[i],1,lineType)
         (txt_w, txt_h) = cv2.getTextSize(names[i] + '  ', font, scale, 1)[0]
         averagePos = (pos,averageTextHeight)
         pos += txt_w
@@ -974,8 +984,8 @@ def graph(table,inc,names,units):
             else:
                 x = nonZero(j + yAxisWidth)
             point = (x,y)
-            if j > 0:
-                cv2.line(graphImage,prevPoint,point,color)
+            if j:
+                cv2.line(graphImage,prevPoint,point,color,2,lineType)
             prevPoint = point
             if(animate):
                 cv2.imshow(windowName,graphImage)
@@ -984,13 +994,13 @@ def graph(table,inc,names,units):
 
         x = yAxisWidth + graphWidth
         cv2.line(graphImage,(x,y),point,uiColor)
-        cv2.putText(graphImage,names[i],(x,y),font,fitWidth(names[i],imageWidth - x - 10),colors[i],1)
+        cv2.putText(graphImage,names[i],(x,y),font,fitWidth(names[i],imageWidth - x - 10),colors[i],1,lineType)
         if(animate):
             cv2.imshow(windowName,graphImage)
             cv2.waitKey(1)
             sleep(delay1)
         text = '{:.2e}'.format(averages[i])
-        cv2.putText(graphImage,text,averagePos,font,fitWidth(text,txt_w - 4),colors[i],1)
+        cv2.putText(graphImage,text,averagePos,font,fitWidth(text,txt_w - 4),colors[i],1,lineType)
         if(animate):
             cv2.imshow(windowName,graphImage)
             cv2.waitKey(1)
@@ -1070,6 +1080,7 @@ def showProgress(value=None,title=None):
     uiColor = parameters['uiColor']
     font_scale = 10
     font = cv2.FORMATTER_FMT_DEFAULT
+    lineType = cv2.LINE_AA
 
     if title != None:
         thickness = 2
@@ -1078,7 +1089,7 @@ def showProgress(value=None,title=None):
         while txt_w > width - 10:
             scale -= 0.01
             ((txt_w, txt_h), _) = cv2.getTextSize(title, font, scale, thickness)
-        cv2.putText(show,title,(center[0] - int(txt_w / 2),txt_h + 10),font,scale,uiColor,thickness)
+        cv2.putText(show,title,(center[0] - int(txt_w / 2),txt_h + 10),font,scale,uiColor,thickness,lineType)
 
     if value != None:
         barWidth = 10
@@ -1089,7 +1100,7 @@ def showProgress(value=None,title=None):
         while txt_w > (radii[1] * 2) - 5:
             scale -= 0.01
             ((txt_w, txt_h), _) = cv2.getTextSize(text, font, scale, 3)
-        cv2.putText(show,text,(center[0] - int(txt_w / 2),center[1] + int(txt_h / 2)),font,scale,uiColor,3)
+        cv2.putText(show,text,(center[0] - int(txt_w / 2),center[1] + int(txt_h / 2)),font,scale,uiColor,3,lineType)
 
         valueAngle = value * 2 * pi
         step = 5
@@ -1101,15 +1112,18 @@ def showProgress(value=None,title=None):
 
             # get points for these two radii
             points[0] = [[int(center[k] + trig[k] * radii[j]) for k in range (2)] for j in range(2)]
-            if i > 0:
+            if i:
                 # join the last to points in reverse order with the currect two points into an array
                 poly = array(points[0] + [points[1][1],points[1][0]])
                 # fill in portion that is value or below, else only fill outline
                 if angle <= valueAngle:
-                    show = cv2.fillPoly(show,[poly],uiColor)
+                    ringCollor = [uiColor[j] for j in range(3)]
+                    ringCollor[0] = (sin(angle) * 128) + 128
+                    ringCollor[1] = (cos(angle) * 128) + 128
+                    show = cv2.fillPoly(show,[poly],ringCollor,lineType=cv2.LINE_AA)
                 else:
-                    cv2.line(show,poly[0],poly[3],uiColor)
-                    cv2.line(show,poly[1],poly[2],uiColor)
+                    cv2.line(show,poly[0],poly[3],uiColor,lineType=cv2.LINE_AA)
+                    cv2.line(show,poly[1],poly[2],uiColor,lineType=cv2.LINE_AA)
             # save the points
             points[1] = points[0]
 
@@ -1122,9 +1136,12 @@ if __name__ == '__main__':
 
     table = []
 
+    # remove initial preformance spike from graph
+    spiral()
+
     while True:
         calculateMovement()
-        graphLength = parameters['graphLength'] + 1
+        graphLength = nonZero(parameters['graphLength'])
         if parameters['graph']['performance']:
             frame,times,names = spiral()
             table.append(times)
@@ -1152,5 +1169,6 @@ if __name__ == '__main__':
 # constant performance graph parameter : DONE
 # fix ageraging in test : DONE
 # make progress bar function : DONE
-# optomise time graph to use new poly method. mabe generalise it into a function to use more than once? - NO actually yes
+# optomise time graph to use new poly method. mabe generalise it into a function to use more than once? - NO - actually yes, but not with a function
 # calculate num turn with exponential radii
+# corse and fine controlls for rotation where corse differs between fraquency harmonics
