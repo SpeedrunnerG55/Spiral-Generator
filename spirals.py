@@ -17,21 +17,21 @@ flags = {
 parameters = {
     'rotateX':20,
     'rotateY':22,
-    'angle manipulation':'exp',
+    'angle manipulation':'linear',
     'grid':10,
     'graphLength':300,
     'graphSize':600,
     'graphcolors':[None],
     'maxSize':100,
     'uiColor':[0xDD,0xDD,0xDD],
-    'graph':{'spiral fill':True,'phase':True,'spiral trace':False,'unit':True,'time graph':True,'colorspace':True,'performance':True},
+    'graph':{'spiral fill':True,'phase':True,'spiral trace':True,'unit':True,'time graph':True,'colorspace':True,'performance':True},
     'colorspace':'BGR',
     'clockInterval':100,
     'timeAngle':0,
     'image width':500,
     'lineWidth':0,
     'exponent':100,
-    'lineWidth Interpolation':'distance',
+    'lineWidth Interpolation':'constant',
     'radius interpolation':'linear',
     'incriment':0,
     'fillType':'polygon',
@@ -76,6 +76,8 @@ fillthicknessList = []
 phaseposList = []
 phaseangleList = []
 
+spiralTraceList = []
+
 def start():
     global processtime
     processtime = time_ns()
@@ -97,6 +99,13 @@ def radius(RintLinear,i,widthratio,exp):
     else:
         r = (i ** exp)
     return r
+
+def calcTrig(aManipLinear,angle,rotX,rotY):
+    if aManipLinear:
+        trig = [cos(angle + rotX),sin(angle + rotY)]
+    else:
+        trig = [cos(angle * rotX),sin(angle * rotY)]
+    return trig
 
 def spiral():
 
@@ -189,6 +198,7 @@ def spiral():
     global fillthicknessList
     global phaseposList
     global phaseangleList
+    global spiralTraceList
     fillType = parameters['fillType']
 
     global signature
@@ -204,6 +214,8 @@ def spiral():
         fillthicknessList = []
         phaseposList = []
         phaseangleList = []
+        spiralTraceList = []
+
         signature = keyParams
 
     times.append(stop())
@@ -225,10 +237,7 @@ def spiral():
                 # angle of fill in radians
                 angle = radians(i)
                 # trig calculations
-                if aManipLinear:
-                    trig = [cos(angle + rotX),sin(angle + rotY)]
-                else:
-                    trig = [cos(angle * rotX),sin(angle * rotY)]
+                trig = calcTrig(aManipLinear,angle,rotX,rotY)
                 # calculate color
                 color = [(stVals[j] + i * chandiffs[j]) % channelSize[j] for j in range(3)]
                 # filling the graph
@@ -272,7 +281,7 @@ def spiral():
                         elif fillType == 'rectangle center':
                             cv2.rectangle(image,prev,pos,color,thickness)
                         elif fillType == 'circle':
-                            thickness = int(thickness/2)
+                            thickness = int(thickness >> 1)
                             cv2.circle(image,pos,thickness,color,-1)
                         elif fillType == 'ellipse':
                             cv2.ellipse(image, (pos, (thickness/MA,thickness/SA),i + rotation), color, -1)
@@ -298,7 +307,7 @@ def spiral():
                     elif fillType == 'rectangle center':
                         cv2.rectangle(image,prev,pos,color,thickness)
                     elif fillType == 'circle':
-                        thickness = int(thickness/2)
+                        thickness = int(thickness >> 1)
                         cv2.circle(image,pos,thickness,color,-1)
                     elif fillType == 'ellipse':
                         cv2.ellipse(image, (pos, (thickness/MA,thickness/SA),i + rotation), color, -1)
@@ -307,23 +316,28 @@ def spiral():
 
     # spiral graph
     if graphlist['spiral trace']:
-        prev = None
-        for i in range(0,360 * numTurns,incriment):
-            r = radius(RintLinear,i,widthratio,exp)
-            if RintLinear:
-                if r > maxR:
-                    r = maxR
-            if r < 0:
-                r = 0
-            angle = radians(i)
-            if aManipLinear:
-                trig = [cos(angle + rotX),sin(angle + rotY)]
-            else:
-                trig = [cos(angle * rotX),sin(angle * rotY)]
-            point  = [int(origin + trig[j] * r) for j in range (2)]
-            if i:
+        if mismatch:
+            prev = None
+            for i in range(0,360 * numTurns,incriment):
+                r = radius(RintLinear,i,widthratio,exp)
+                if RintLinear:
+                    if r > maxR:
+                        r = maxR
+                if r < 0:
+                    r = 0
+                angle = radians(i)
+                trig = calcTrig(aManipLinear,angle,rotX,rotY)
+                point  = [int(origin + trig[0] * r),
+                          int(origin + trig[1] * r)]
+                if i:
+                    spiralTraceList.append((prev,point))
+                    cv2.line(image,prev,point,uiColor)
+                prev = point
+        else:
+            for points in spiralTraceList:
+                (prev,point) = points
                 cv2.line(image,prev,point,uiColor)
-            prev = point
+
         times.append(stop())
         names.append('spiral trace')
 
@@ -548,10 +562,7 @@ def spiral():
         angleList = [i * pioversix for i in range(6)] + [i * pioverfour for i in range(1,4,2)]
         for i in range(len(angleList)):
             angle = angleList[i]
-            if aManipLinear:
-                trig = [cos(angle + rotX),sin(angle + rotY)]
-            else:
-                trig = [cos(angle * rotX),sin(angle * rotY)]
+            trig = calcTrig(aManipLinear,angle,rotX,rotY)
             end1 = [int(origin + trig[j] * fillRadius) for j in range(2)]
             end2 = [int(origin - trig[j] * fillRadius) for j in range(2)]
             if i < 6:
